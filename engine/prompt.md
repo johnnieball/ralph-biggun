@@ -3,15 +3,15 @@
 Read these files in order:
 
 1. `CLAUDE.md` - Project-specific patterns, conventions, and commands. This is your operating manual.
-2. `plans/prd.json` - The product requirements document containing all user stories.
+2. `__PRD_PATH__` - The product requirements document containing all user stories.
 3. `progress.txt` - Start with the **Codebase Patterns** section at the top. These are consolidated learnings from previous iterations. Read them before doing anything else. Then read the full log to understand recent work.
 
 The last 10 RALPH commits (SHA, date, full message) have been appended to the bottom of this prompt by ralph.sh. Review them to understand what work has been done recently and avoid duplicating effort.
 
-4. `codebase-snapshot.md` — If this file exists, read it. It contains a deterministic snapshot of the codebase generated between iterations: file tree, public exports, import graph, test counts, and alerts. Compare the import graph against `plans/architecture.md` dependency rules. Flag any violations in your iteration notes.
+4. `codebase-snapshot.md` — If this file exists, read it. It contains a deterministic snapshot of the codebase generated between iterations: file tree, public exports, import graph, test counts, and alerts. Compare the import graph against `specs/architecture.md` dependency rules. Flag any violations in your iteration notes.
 
-5. `plans/architecture.md` — If this file contains only HTML comment placeholders (`<!-- Generated from PRD at kickoff`), populate it before starting story work:
-   - Read `plans/prd.json` and identify the modules, their responsibilities, and dependency direction
+5. `specs/architecture.md` — If this file contains only HTML comment placeholders (`<!-- Generated from PRD at kickoff`), populate it before starting story work:
+   - Read `__PRD_PATH__` and identify the modules, their responsibilities, and dependency direction
    - Fill in Modules, Dependency Rules, and Hard Constraints with concrete entries
    - Keep it under 20 lines total
    - Commit as `RALPH: chore: populate architecture.md from PRD` before starting the first story
@@ -21,7 +21,7 @@ The last 10 RALPH commits (SHA, date, full message) have been appended to the bo
 
 # TASK SELECTION
 
-Pick the **highest priority** user story in `plans/prd.json` where `passes: false`.
+Pick the **highest priority** user story in `__PRD_PATH__` where `passes: false`.
 
 Make each task the smallest possible unit of work. We don't want to outrun our headlights. One small, well-tested change per iteration.
 
@@ -35,7 +35,7 @@ ONE task per iteration - this is non-negotiable. Do not batch. Do not "quickly k
 
 Explore the repo and fill your context window with relevant information that will allow you to complete the task.
 
-If `codebase-snapshot.md` exists, check its import graph against `plans/architecture.md` dependency rules. If you spot violations in modules you're about to touch, fix them as part of this iteration.
+If `codebase-snapshot.md` exists, check its import graph against `specs/architecture.md` dependency rules. If you spot violations in modules you're about to touch, fix them as part of this iteration.
 
 Read existing tests to understand testing patterns before writing new ones. Look at naming conventions, assertion styles, test structure, and how mocks (if any) are used.
 
@@ -147,7 +147,7 @@ If anything fails, fix it before committing. Do NOT commit broken code.
 
 # COMMIT
 
-Update the PRD first: set `passes: true` for the completed story in `plans/prd.json`. This must be included in the same commit.
+Update the PRD first: set `passes: true` for the completed story in `__PRD_PATH__`. This must be included in the same commit.
 
 Commit ALL changes with the message format:
 
@@ -202,7 +202,7 @@ RECOMMENDATION: <one line summary of what to do next>
 
 Set EXIT_SIGNAL to **true** when ALL of these conditions are met:
 
-1. All stories in prd.json have `passes: true`
+1. All stories in the PRD have `passes: true`
 2. All tests are passing (or no tests exist for valid reasons)
 3. No errors or warnings in the last execution
 4. All requirements from the PRD are implemented
@@ -216,7 +216,7 @@ Ralph's circuit breaker and response analyser use these scenarios to detect comp
 
 **Given**:
 
-- All stories in plans/prd.json have `passes: true`
+- All stories in **PRD_PATH** have `passes: true`
 - Last test run shows all tests passing
 - No errors in recent output
 - All requirements from the PRD are implemented
@@ -296,7 +296,7 @@ RECOMMENDATION: Stuck on [error description] - human intervention needed
 
 **Given**:
 
-- All tasks in prd.json are complete
+- All tasks in the PRD are complete
 - You analyse the PRD and find nothing new to implement
 - Code quality is acceptable
 - Tests are passing
@@ -323,7 +323,7 @@ RECOMMENDATION: No remaining work, all PRD stories implemented
 
 **Given**:
 
-- Tasks remain in prd.json with `passes: false`
+- Tasks remain in the PRD with `passes: false`
 - Implementation is underway
 - Files are being modified
 - Tests are passing or being fixed
@@ -340,7 +340,7 @@ FILES_MODIFIED: 7
 TESTS_STATUS: PASSING
 WORK_TYPE: IMPLEMENTATION
 EXIT_SIGNAL: false
-RECOMMENDATION: Continue with next task from prd.json
+RECOMMENDATION: Continue with next task from PRD
 ---END_RALPH_STATUS---
 ```
 
@@ -384,7 +384,8 @@ RECOMMENDATION: Blocked on [specific dependency] - need [what's needed]
 
 The following files and directories are part of Ralph's infrastructure. NEVER delete, move, rename, or overwrite these under any circumstances:
 
-- `plans/` (entire directory - prompt.md, ralph.sh, prd.json structure)
+- `engine/` (entire directory - prompt.md, ralph.sh, kickoff.sh, snapshot.sh)
+- `specs/` (entire directory - architecture.md, prd.json structure)
 - `skills/` (entire directory and all contents)
 - `progress.txt` (append only - never replace, never delete content)
 - `.ralphrc` (project configuration)

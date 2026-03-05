@@ -49,9 +49,9 @@ setup_temp_repo() {
   git add -A
   git commit -q -m "initial commit"
 
-  mkdir -p plans
-  cp "$REPO_ROOT/plans/ralph.sh" plans/
-  cp "$REPO_ROOT/plans/prompt.md" plans/
+  mkdir -p engine
+  cp "$REPO_ROOT/engine/ralph.sh" engine/
+  cp "$REPO_ROOT/engine/prompt.md" engine/
 
   cat > .ralphrc << 'EOF'
 MAX_CALLS_PER_HOUR=100
@@ -75,7 +75,7 @@ unset RALPH_SKIP_KICKOFF
 export MOCK_SCENARIO=normal
 
 set +e
-output=$(bash plans/ralph.sh 2>&1)
+output=$(bash engine/ralph.sh 2>&1)
 exit_code=$?
 set -e
 
@@ -92,7 +92,7 @@ echo "2026-01-01T00:00:00Z" > .ralph-kickoff-complete
 export MOCK_SCENARIO=exit-promise
 
 set +e
-output=$(bash plans/ralph.sh 2>&1)
+output=$(bash engine/ralph.sh 2>&1)
 exit_code=$?
 set -e
 
@@ -108,7 +108,7 @@ export RALPH_SKIP_KICKOFF=1
 export MOCK_SCENARIO=exit-promise
 
 set +e
-output=$(bash plans/ralph.sh 2>&1)
+output=$(bash engine/ralph.sh 2>&1)
 exit_code=$?
 set -e
 

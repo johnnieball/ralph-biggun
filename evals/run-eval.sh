@@ -86,19 +86,19 @@ run_prompt() {
   bash "$SCRIPT_DIR/scaffold.sh" "$project_name"
 
   # 4. Copy toy project prd.json over the placeholder
-  cp "$toy_dir/prd.json" plans/prd.json
+  cp "$toy_dir/prd.json" specs/prd.json
   cp "$toy_dir/prd.json" "$RUN_DIR/input-prd.json"
 
   # 5. Run ralph.sh, capturing output
   echo "Running Ralph loop (max $max_iterations iterations)..."
   set +e
-  RALPH_SKIP_KICKOFF=1 bash ./plans/ralph.sh "$max_iterations" 2>&1 | tee "$RUN_DIR/ralph-output.log"
+  RALPH_SKIP_KICKOFF=1 bash ./engine/ralph.sh "$max_iterations" 2>&1 | tee "$RUN_DIR/ralph-output.log"
   RALPH_EXIT=${PIPESTATUS[0]}
   set -e
 
   # 6. Copy artefacts to run directory
   echo "$RALPH_EXIT" > "$RUN_DIR/exit-code.txt"
-  cp plans/prd.json "$RUN_DIR/prd.json" 2>/dev/null || true
+  cp specs/prd.json "$RUN_DIR/prd.json" 2>/dev/null || true
   cp progress.txt "$RUN_DIR/progress.txt" 2>/dev/null || true
   git log --oneline --all > "$RUN_DIR/git-log.txt" 2>/dev/null || true
 

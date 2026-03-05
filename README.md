@@ -10,19 +10,21 @@ cd ralph-greenfield
 ./create-project.sh ~/projects/my-app
 ```
 
-Or with a PRD:
+Or with a PRD and named plan:
 
 ```bash
-./create-project.sh ~/projects/my-app path/to/prd.json
+./create-project.sh ~/projects/my-app path/to/prd.json my-plan
 ```
 
 Then review and run the loop:
 
 ```bash
 cd ~/projects/my-app
-./plans/kickoff.sh
-./plans/ralph.sh 20
+./engine/kickoff.sh my-plan
+./engine/ralph.sh 20 my-plan
 ```
+
+Set `RALPH_PLAN=my-plan` in `.ralphrc` to avoid passing the plan name each time. Multiple plans live as `specs/prd-<name>.json`. If you omit the plan name from `create-project.sh`, it defaults to the project name.
 
 ## PRD format
 
@@ -50,10 +52,10 @@ For complex projects, consider using [OpenSpec](https://github.com/Fission-AI/Op
 
 ## What's inside
 
-- `plans/ralph.sh` — The loop. Fresh context per iteration, circuit breaker, rate limiting, dual exit detection.
-- `plans/kickoff.sh` — PRD review gate. Validates stories before AFK execution.
-- `plans/prompt.md` — The iteration prompt. 10-phase TDD workflow with verification gates.
-- `plans/snapshot.sh` — Codebase snapshot generator (file tree, exports, import graph, test counts).
+- `engine/ralph.sh` — The loop. Fresh context per iteration, circuit breaker, rate limiting, dual exit detection.
+- `engine/kickoff.sh` — PRD review gate. Validates stories before AFK execution.
+- `engine/prompt.md` — The iteration prompt. 10-phase TDD workflow with verification gates.
+- `engine/snapshot.sh` — Codebase snapshot generator (file tree, exports, import graph, test counts).
 - `skills/tdd/` — TDD methodology (Matt Pocock + obra/superpowers). Non-negotiable.
 - `.claude/hooks/` — Git guardrails blocking dangerous commands.
 - `.ralphrc` — Loop configuration (rate limits, circuit breaker thresholds).

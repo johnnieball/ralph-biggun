@@ -26,7 +26,7 @@ portable_sed() {
 # Replace placeholders
 portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" package.json
 portable_sed "s/\[Project Name\]/$PROJECT_NAME/g" CLAUDE.md
-portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" plans/architecture.md
+portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" specs/architecture.md
 
 # Strip eval infrastructure (not needed in scaffolded projects)
 rm -rf evals/
@@ -49,9 +49,9 @@ Started: (date will be filled by first iteration)
 EOF
 
 # Set permissions
-chmod +x plans/ralph.sh
-chmod +x plans/kickoff.sh
-[ -f plans/snapshot.sh ] && chmod +x plans/snapshot.sh
+chmod +x engine/ralph.sh
+chmod +x engine/kickoff.sh
+[ -f engine/snapshot.sh ] && chmod +x engine/snapshot.sh
 [ -f .claude/hooks/block-dangerous-git.sh ] && chmod +x .claude/hooks/block-dangerous-git.sh
 
 # Initialise git (must happen before bun install so husky's prepare script works)

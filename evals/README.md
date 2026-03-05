@@ -52,7 +52,7 @@ Overnight eval for large, multi-workstream projects. Runs the full Ralph loop in
 **How it works:**
 
 1. Scaffolds a fresh build directory from the template
-2. Copies the beast `prd.json` (20 stories) into `plans/`
+2. Copies the beast `prd.json` (20 stories) into `specs/`
 3. Runs `ralph.sh` for up to N iterations per round
 4. When Ralph exits (circuit breaker, max iterations, or timeout):
    - Detects API-level failures (zero commits + few iterations) and pauses gracefully

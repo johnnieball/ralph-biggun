@@ -119,7 +119,7 @@ fi
 # 7. Assert placeholder replacement
 assert_contains "CLAUDE.md contains test-project" "CLAUDE.md" "test-project"
 assert_contains "package.json contains test-project" "package.json" "test-project"
-assert_contains "architecture.md contains test-project" "plans/architecture.md" "test-project"
+assert_contains "architecture.md contains test-project" "specs/architecture.md" "test-project"
 
 # 8. Assert eval/scaffold artefacts stripped
 assert_false "evals/ directory does not exist" test -d evals
@@ -127,11 +127,11 @@ assert_false "create-project.sh does not exist" test -f create-project.sh
 assert_false "setup.sh does not exist" test -f setup.sh
 
 # 9. Assert Ralph machinery present
-assert_true "plans/ralph.sh exists" test -f plans/ralph.sh
-assert_true "plans/kickoff.sh exists" test -f plans/kickoff.sh
-assert_true "plans/prompt.md exists" test -f plans/prompt.md
-assert_true "plans/snapshot.sh exists" test -f plans/snapshot.sh
-assert_true "plans/architecture.md exists" test -f plans/architecture.md
+assert_true "engine/ralph.sh exists" test -f engine/ralph.sh
+assert_true "engine/kickoff.sh exists" test -f engine/kickoff.sh
+assert_true "engine/prompt.md exists" test -f engine/prompt.md
+assert_true "engine/snapshot.sh exists" test -f engine/snapshot.sh
+assert_true "specs/architecture.md exists" test -f specs/architecture.md
 assert_true "skills/tdd/SKILL.md exists" test -f skills/tdd/SKILL.md
 assert_true ".claude/hooks/block-dangerous-git.sh exists" test -f .claude/hooks/block-dangerous-git.sh
 assert_true "progress.txt exists" test -f progress.txt

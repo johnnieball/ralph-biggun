@@ -2,26 +2,31 @@
 set -e
 
 # create-project.sh — Create a new Ralph project from the template
-# Usage: ./create-project.sh <target-path> [prd.json]
+# Usage: ./create-project.sh <target-path> [prd.json] [plan-name]
+#
+# PRD is placed at specs/prd-<plan-name>.json and RALPH_PLAN is set in .ralphrc.
+# If plan-name is omitted, the project name is used as the plan name.
 #
 # Examples:
 #   ./create-project.sh ~/projects/my-app
 #   ./create-project.sh ~/projects/my-app specs/my-app-prd.json
-#   ./create-project.sh /tmp/throwaway-app prd.json
+#   ./create-project.sh ~/projects/my-app specs/my-app-prd.json my-app
 
 TEMPLATE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [ -z "$1" ]; then
-  echo "Usage: ./create-project.sh <target-path> [prd.json]"
+  echo "Usage: ./create-project.sh <target-path> [prd.json] [plan-name]"
   echo ""
   echo "Examples:"
   echo "  ./create-project.sh ~/projects/my-app"
   echo "  ./create-project.sh ~/projects/my-app specs/my-prd.json"
+  echo "  ./create-project.sh ~/projects/my-app specs/my-prd.json my-app"
   exit 1
 fi
 
 TARGET="$(cd "$(dirname "$1")" 2>/dev/null && pwd)/$(basename "$1")" || TARGET="$1"
 PRD_SOURCE="$2"
+PLAN_NAME="$3"
 PROJECT_NAME="$(basename "$TARGET")"
 
 # Validate
@@ -42,11 +47,15 @@ mkdir -p "$TARGET"
 
 # --- Copy template files ---
 
-# Plans (Ralph machinery) — without the template's own prd.json
-mkdir -p "$TARGET/plans"
-for f in ralph.sh kickoff.sh prompt.md snapshot.sh architecture.md; do
-  [ -f "$TEMPLATE_DIR/plans/$f" ] && cp "$TEMPLATE_DIR/plans/$f" "$TARGET/plans/"
+# Engine (Ralph machinery)
+mkdir -p "$TARGET/engine"
+for f in ralph.sh kickoff.sh prompt.md snapshot.sh; do
+  [ -f "$TEMPLATE_DIR/engine/$f" ] && cp "$TEMPLATE_DIR/engine/$f" "$TARGET/engine/"
 done
+
+# Specs (architecture template)
+mkdir -p "$TARGET/specs"
+[ -f "$TEMPLATE_DIR/specs/architecture.md" ] && cp "$TEMPLATE_DIR/specs/architecture.md" "$TARGET/specs/"
 
 # Skills
 cp -R "$TEMPLATE_DIR/skills" "$TARGET/skills"
@@ -83,11 +92,15 @@ portable_sed() {
 # Replace placeholders with project name
 portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" "$TARGET/package.json"
 portable_sed "s/\[Project Name\]/$PROJECT_NAME/g" "$TARGET/CLAUDE.md"
-portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" "$TARGET/plans/architecture.md"
+portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" "$TARGET/specs/architecture.md"
 
 # Copy user's PRD if provided
 if [ -n "$PRD_SOURCE" ]; then
-  cp "$PRD_SOURCE" "$TARGET/plans/prd.json"
+  # Default plan name to project name if not specified
+  PLAN_NAME="${PLAN_NAME:-$PROJECT_NAME}"
+  cp "$PRD_SOURCE" "$TARGET/specs/prd-${PLAN_NAME}.json"
+  # Set RALPH_PLAN in .ralphrc
+  portable_sed "s/^RALPH_PLAN=$/RALPH_PLAN=$PLAN_NAME/" "$TARGET/.ralphrc"
 fi
 
 # Create empty progress.txt
@@ -113,9 +126,9 @@ export {};
 EOF
 
 # Set permissions
-chmod +x "$TARGET/plans/ralph.sh"
-chmod +x "$TARGET/plans/kickoff.sh"
-[ -f "$TARGET/plans/snapshot.sh" ] && chmod +x "$TARGET/plans/snapshot.sh"
+chmod +x "$TARGET/engine/ralph.sh"
+chmod +x "$TARGET/engine/kickoff.sh"
+[ -f "$TARGET/engine/snapshot.sh" ] && chmod +x "$TARGET/engine/snapshot.sh"
 [ -f "$TARGET/.claude/hooks/block-dangerous-git.sh" ] && chmod +x "$TARGET/.claude/hooks/block-dangerous-git.sh"
 
 # Initialise git (must happen before bun install so husky's prepare script works)
@@ -143,11 +156,12 @@ echo ""
 echo "Next steps:"
 if [ -n "$PRD_SOURCE" ]; then
   echo "  1. cd $TARGET"
-  echo "  2. ./plans/kickoff.sh"
-  echo "  3. ./plans/ralph.sh 20"
+  echo "  2. ./engine/kickoff.sh $PLAN_NAME"
+  echo "  3. ./engine/ralph.sh 20 $PLAN_NAME"
 else
-  echo "  1. Add your PRD:  cp your-prd.json $TARGET/plans/prd.json"
-  echo "  2. cd $TARGET"
-  echo "  3. ./plans/kickoff.sh"
-  echo "  4. ./plans/ralph.sh 20"
+  echo "  1. Add your PRD:  cp your-prd.json $TARGET/specs/prd-my-plan.json"
+  echo "  2. Set RALPH_PLAN=my-plan in $TARGET/.ralphrc"
+  echo "  3. cd $TARGET"
+  echo "  4. ./engine/kickoff.sh my-plan"
+  echo "  5. ./engine/ralph.sh 20 my-plan"
 fi

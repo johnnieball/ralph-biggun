@@ -50,9 +50,9 @@ setup_temp_repo() {
   git add -A
   git commit -q -m "initial commit"
 
-  mkdir -p plans
-  cp "$REPO_ROOT/plans/ralph.sh" plans/
-  cp "$REPO_ROOT/plans/prompt.md" plans/
+  mkdir -p engine
+  cp "$REPO_ROOT/engine/ralph.sh" engine/
+  cp "$REPO_ROOT/engine/prompt.md" engine/
 
   echo "$ralphrc_content" > .ralphrc
 
@@ -77,7 +77,7 @@ EOF
 export MOCK_SCENARIO=no-commit
 
 set +e
-output=$(bash plans/ralph.sh 2>&1)
+output=$(bash engine/ralph.sh 2>&1)
 exit_code=$?
 set -e
 
@@ -99,7 +99,7 @@ EOF
 export MOCK_SCENARIO=same-error
 
 set +e
-output=$(bash plans/ralph.sh 2>&1)
+output=$(bash engine/ralph.sh 2>&1)
 exit_code=$?
 set -e
 

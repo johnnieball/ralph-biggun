@@ -25,9 +25,9 @@ echo "init" > dummy.txt
 git add -A
 git commit -q -m "initial commit"
 
-mkdir -p plans
-cp "$REPO_ROOT/plans/ralph.sh" plans/
-cp "$REPO_ROOT/plans/prompt.md" plans/
+mkdir -p engine
+cp "$REPO_ROOT/engine/ralph.sh" engine/
+cp "$REPO_ROOT/engine/prompt.md" engine/
 
 # Use normal scenario (creates commits) with low MAX_CALLS_PER_HOUR
 # but high enough MAX_ITERATIONS to get a few iterations in
@@ -49,7 +49,7 @@ export MOCK_SCENARIO=normal
 # Run ralph.sh in background, kill after a few seconds
 # (It will sleep when hitting the rate limit, so we just need 2 iterations)
 set +e
-bash plans/ralph.sh > /dev/null 2>&1 &
+bash engine/ralph.sh > /dev/null 2>&1 &
 RALPH_PID=$!
 
 # Wait for a couple of iterations (normal scenario is fast)

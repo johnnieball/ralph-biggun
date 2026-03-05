@@ -1,32 +1,57 @@
 #!/bin/bash
 set -e
 
-# plans/kickoff.sh — PRD planning phase
+# engine/kickoff.sh — PRD planning phase
 # Validates prd.json and runs a one-shot Claude analysis before AFK execution.
 # Writes .ralph-kickoff-complete on approval; ralph.sh gates on this file.
 
 # Ensure bun is on PATH (installed to ~/.bun by default)
 export PATH="$HOME/.bun/bin:$PATH"
 
-# 1. Validate prd.json exists and has stories
-if [ ! -f "plans/prd.json" ]; then
-  echo "ERROR: plans/prd.json not found."
-  echo "       Create your PRD before running kickoff."
+# Source configuration
+if [ -f ".ralphrc" ]; then
+  source .ralphrc
+fi
+
+# Plan selection: CLI arg > RALPH_PLAN config
+if [ -n "$1" ]; then
+  RALPH_PLAN="$1"
+fi
+
+if [ -z "$RALPH_PLAN" ]; then
+  echo "ERROR: No plan selected. Set RALPH_PLAN in .ralphrc or pass as argument."
+  echo "  Usage: $0 <plan-name>"
+  echo "Available plans:"
+  for f in specs/prd-*.json; do
+    [ -f "$f" ] && echo "  - $(basename "$f" | sed 's/^prd-//;s/\.json$//')"
+  done
   exit 1
 fi
 
-story_count=$(jq '.userStories | length' plans/prd.json 2>/dev/null || echo "0")
+PRD_PATH="specs/prd-${RALPH_PLAN}.json"
+
+# 1. Validate PRD exists and has stories
+if [ ! -f "$PRD_PATH" ]; then
+  echo "ERROR: PRD not found at $PRD_PATH"
+  echo "Available plans:"
+  for f in specs/prd-*.json; do
+    [ -f "$f" ] && echo "  - $(basename "$f" | sed 's/^prd-//;s/\.json$//')"
+  done
+  exit 1
+fi
+
+story_count=$(jq '.userStories | length' "$PRD_PATH" 2>/dev/null || echo "0")
 if [ "$story_count" -eq 0 ]; then
-  echo "ERROR: plans/prd.json has no user stories."
+  echo "ERROR: $PRD_PATH has no user stories."
   exit 1
 fi
 
-project_name=$(jq -r '.project // "unknown"' plans/prd.json 2>/dev/null)
-echo "Kickoff: $project_name ($story_count stories)"
+project_name=$(jq -r '.project // "unknown"' "$PRD_PATH" 2>/dev/null)
+echo "Kickoff: $project_name ($story_count stories) — $PRD_PATH"
 echo ""
 
 # 2. Build analysis prompt
-prd_contents=$(cat plans/prd.json)
+prd_contents=$(cat "$PRD_PATH")
 
 analysis_prompt="You are a senior technical reviewer auditing a PRD before it is handed to an autonomous TDD agent (Ralph). The agent works one story at a time, writes a failing test first, then implements to make it pass. It has no human in the loop during execution.
 
@@ -87,9 +112,9 @@ fi
 if [[ "$answer" =~ ^[Yy] ]]; then
   echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > .ralph-kickoff-complete
   echo ""
-  echo "Kickoff complete. Run ./plans/ralph.sh to start."
+  echo "Kickoff complete. Run ./engine/ralph.sh to start."
 else
   echo ""
-  echo "Kickoff cancelled. Fix the issues in plans/prd.json and re-run."
+  echo "Kickoff cancelled. Fix the issues in $PRD_PATH and re-run."
   exit 1
 fi
