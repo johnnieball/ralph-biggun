@@ -63,7 +63,6 @@ run_prompt() {
     fi
   fi
 
-  # Read project name from prd.json for setup.sh
   local project_name
   project_name=$(jq -r '.project' "$toy_dir/prd.json" 2>/dev/null || echo "$toy_project-eval")
 
@@ -82,9 +81,9 @@ run_prompt() {
   rsync -a --exclude='.git' --exclude='evals/' --exclude='node_modules/' "$REPO_ROOT/" "$TMPDIR_PATH/"
   cd "$TMPDIR_PATH"
 
-  # 3. Run setup.sh
+  # 3. Run scaffold.sh
   echo "Scaffolding $project_name..."
-  bash ./setup.sh "$project_name"
+  bash "$SCRIPT_DIR/scaffold.sh" "$project_name"
 
   # 4. Copy toy project prd.json over the placeholder
   cp "$toy_dir/prd.json" plans/prd.json

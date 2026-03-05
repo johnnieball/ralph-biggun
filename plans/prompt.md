@@ -17,6 +17,8 @@ The last 10 RALPH commits (SHA, date, full message) have been appended to the bo
    - Commit as `RALPH: chore: populate architecture.md from PRD` before starting the first story
      If architecture.md is already populated, read it and check planned changes against the dependency rules.
 
+6. `.gitignore` — On the first iteration, review `.gitignore` against the PRD's tech stack. The template covers common patterns (node_modules, .next, .env, data/, coverage, etc.). If the PRD specifies additional technology (e.g. Python venv, Rust target/, Go bin/, specific database files), append the relevant patterns. Do this in the same commit as the architecture.md population. Do NOT remove existing entries — only add missing ones.
+
 # TASK SELECTION
 
 Pick the **highest priority** user story in `plans/prd.json` where `passes: false`.

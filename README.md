@@ -5,15 +5,22 @@ Scaffold for autonomous greenfield TypeScript projects using the Ralph loop patt
 ## Usage
 
 ```bash
-git clone https://github.com/axiiom/ralph-greenfield.git my-project
-cd my-project
-./setup.sh my-project
+git clone https://github.com/axiiom/ralph-greenfield.git
+cd ralph-greenfield
+./create-project.sh ~/projects/my-app
 ```
 
-Then write your PRD and run the loop:
+Or with a PRD:
 
 ```bash
-# Edit plans/prd.json with your user stories, then:
+./create-project.sh ~/projects/my-app path/to/prd.json
+```
+
+Then review and run the loop:
+
+```bash
+cd ~/projects/my-app
+./plans/kickoff.sh
 ./plans/ralph.sh 20
 ```
 
@@ -44,10 +51,13 @@ For complex projects, consider using [OpenSpec](https://github.com/Fission-AI/Op
 ## What's inside
 
 - `plans/ralph.sh` — The loop. Fresh context per iteration, circuit breaker, rate limiting, dual exit detection.
+- `plans/kickoff.sh` — PRD review gate. Validates stories before AFK execution.
 - `plans/prompt.md` — The iteration prompt. 10-phase TDD workflow with verification gates.
+- `plans/snapshot.sh` — Codebase snapshot generator (file tree, exports, import graph, test counts).
 - `skills/tdd/` — TDD methodology (Matt Pocock + obra/superpowers). Non-negotiable.
 - `.claude/hooks/` — Git guardrails blocking dangerous commands.
 - `.ralphrc` — Loop configuration (rate limits, circuit breaker thresholds).
+- `create-project.sh` — Bootstrap a new project from this template.
 
 ## Architecture decisions
 

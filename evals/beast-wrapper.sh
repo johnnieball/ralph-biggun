@@ -34,11 +34,11 @@ trap "rm -rf $TMPDIR_PATH" EXIT
 rsync -a --exclude='.git' --exclude='evals/' --exclude='node_modules/' "$REPO_ROOT/" "$TMPDIR_PATH/"
 cd "$TMPDIR_PATH"
 
-# 3. Run setup.sh
+# 3. Run scaffold.sh
 echo "Scaffolding beast-eval..."
-bash ./setup.sh beast-eval
+bash "$SCRIPT_DIR/scaffold.sh" beast-eval
 
-# 4. Copy beast prd.json from ORIGINAL repo's evals (not temp dir — setup.sh strips evals/)
+# 4. Copy beast prd.json from ORIGINAL repo's evals
 cp "$SCRIPT_DIR/toy-projects/beast/prd.json" plans/prd.json
 cp "$SCRIPT_DIR/toy-projects/beast/prd.json" "$RUN_DIR/input-prd.json"
 

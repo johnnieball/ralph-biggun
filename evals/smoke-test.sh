@@ -59,15 +59,15 @@ TMPDIR_PATH=$(mktemp -d)
 rsync -a --exclude='.git' --exclude='evals/' --exclude='node_modules/' "$REPO_ROOT/" "$TMPDIR_PATH/"
 cd "$TMPDIR_PATH"
 
-# 2. Run setup.sh
-echo "Running setup.sh test-project..."
+# 2. Run scaffold.sh
+echo "Running scaffold.sh test-project..."
 set +e
-bash ./setup.sh test-project > /dev/null 2>&1
+bash "$SCRIPT_DIR/scaffold.sh" test-project > /dev/null 2>&1
 setup_exit=$?
 set -e
 
 if [ "$setup_exit" -ne 0 ]; then
-  echo "  FAIL: setup.sh exited with code $setup_exit"
+  echo "  FAIL: scaffold.sh exited with code $setup_exit"
   FAIL=$(( FAIL + 1 ))
   echo ""
   echo "Smoke tests: $PASS passed, $FAIL failed"
@@ -105,28 +105,38 @@ else
   FAIL=$(( FAIL + 1 ))
 fi
 
-# 6. Assert git repo initialised on branch ralph/initial-build
+# 6. Assert git repo initialised with initial commit
 assert_true "git repo initialised" test -d .git
-current_branch=$(git branch --show-current 2>/dev/null || echo "")
-if [ "$current_branch" = "ralph/initial-build" ]; then
-  echo "  PASS: on branch ralph/initial-build"
+commit_count=$(git rev-list --count HEAD 2>/dev/null || echo "0")
+if [ "$commit_count" -ge 1 ]; then
+  echo "  PASS: initial commit exists"
   PASS=$(( PASS + 1 ))
 else
-  echo "  FAIL: expected branch ralph/initial-build, got '$current_branch'"
+  echo "  FAIL: no initial commit"
   FAIL=$(( FAIL + 1 ))
 fi
 
-# 7. Assert prd.json contains test-project
-assert_contains "prd.json contains test-project" "plans/prd.json" "test-project"
-
-# 8. Assert CLAUDE.md contains test-project
+# 7. Assert placeholder replacement
 assert_contains "CLAUDE.md contains test-project" "CLAUDE.md" "test-project"
+assert_contains "package.json contains test-project" "package.json" "test-project"
+assert_contains "architecture.md contains test-project" "plans/architecture.md" "test-project"
 
-# 9. Assert evals/ directory does NOT exist
+# 8. Assert eval/scaffold artefacts stripped
 assert_false "evals/ directory does not exist" test -d evals
-
-# 10. Assert setup.sh does NOT exist
+assert_false "create-project.sh does not exist" test -f create-project.sh
 assert_false "setup.sh does not exist" test -f setup.sh
+
+# 9. Assert Ralph machinery present
+assert_true "plans/ralph.sh exists" test -f plans/ralph.sh
+assert_true "plans/kickoff.sh exists" test -f plans/kickoff.sh
+assert_true "plans/prompt.md exists" test -f plans/prompt.md
+assert_true "plans/snapshot.sh exists" test -f plans/snapshot.sh
+assert_true "plans/architecture.md exists" test -f plans/architecture.md
+assert_true "skills/tdd/SKILL.md exists" test -f skills/tdd/SKILL.md
+assert_true ".claude/hooks/block-dangerous-git.sh exists" test -f .claude/hooks/block-dangerous-git.sh
+assert_true "progress.txt exists" test -f progress.txt
+assert_true ".ralphrc exists" test -f .ralphrc
+assert_true ".gitignore exists" test -f .gitignore
 
 echo ""
 echo "Smoke tests: $PASS passed, $FAIL failed"

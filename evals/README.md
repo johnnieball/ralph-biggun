@@ -14,7 +14,7 @@ Deterministic tests for ralph.sh's bash logic. Uses `mock-claude.sh` to simulate
 
 ### 2. Skeleton Integrity (`evals/smoke-test.sh`)
 
-Tests that the project scaffolds correctly: `bun install`, `bun run test`, `bun run typecheck`, git init, placeholder replacement, and self-cleanup of `evals/` and `setup.sh`.
+Tests that the project scaffolds correctly: `bun install`, `bun run test`, `bun run typecheck`, git init, placeholder replacement, and self-cleanup of eval artefacts.
 
 ```bash
 ./evals/run-eval.sh smoke
@@ -91,6 +91,7 @@ evals/
     test-rate-limiting.sh
     test-hook-blocking.sh
     run-loop-tests.sh    # Runs all loop tests
+  scaffold.sh            # In-place project scaffolding for eval runs
   smoke-test.sh
   toy-projects/
     calculator/
@@ -109,7 +110,7 @@ evals/
 ## Notes
 
 - `evals/runs/` is gitignored. Eval output stays local.
-- The entire `evals/` directory is stripped when scaffolding a real project via `setup.sh`.
+- The `evals/` directory is stripped during scaffolding (both `create-project.sh` and `evals/scaffold.sh`).
 - Loop tests and smoke tests are free (no API calls). Run them liberally.
 - Prompt evals cost API credits. Run sparingly and review results with `analyse-run.sh`.
 - Use `scorecard-template.md` for manual assessment after prompt evals.
