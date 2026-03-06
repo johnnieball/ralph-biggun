@@ -49,7 +49,7 @@ mkdir -p "$TARGET"
 
 # Engine (Ralph machinery)
 mkdir -p "$TARGET/engine"
-for f in ralph.sh kickoff.sh prompt.md snapshot.sh; do
+for f in ralph.sh prompt.md snapshot.sh; do
   [ -f "$TEMPLATE_DIR/engine/$f" ] && cp "$TEMPLATE_DIR/engine/$f" "$TARGET/engine/"
 done
 
@@ -72,6 +72,10 @@ cp "$TEMPLATE_DIR/vitest.config.ts" "$TARGET/"
 cp "$TEMPLATE_DIR/.oxlintrc.json" "$TARGET/"
 cp "$TEMPLATE_DIR/.prettierrc" "$TARGET/"
 cp "$TEMPLATE_DIR/.lintstagedrc" "$TARGET/"
+
+# Claude Code skills
+mkdir -p "$TARGET/.claude/skills"
+cp -R "$TEMPLATE_DIR/.claude/skills/"* "$TARGET/.claude/skills/" 2>/dev/null || true
 
 # Claude Code hooks
 mkdir -p "$TARGET/.claude/hooks"
@@ -127,7 +131,6 @@ EOF
 
 # Set permissions
 chmod +x "$TARGET/engine/ralph.sh"
-chmod +x "$TARGET/engine/kickoff.sh"
 [ -f "$TARGET/engine/snapshot.sh" ] && chmod +x "$TARGET/engine/snapshot.sh"
 [ -f "$TARGET/.claude/hooks/block-dangerous-git.sh" ] && chmod +x "$TARGET/.claude/hooks/block-dangerous-git.sh"
 
@@ -156,12 +159,12 @@ echo ""
 echo "Next steps:"
 if [ -n "$PRD_SOURCE" ]; then
   echo "  1. cd $TARGET"
-  echo "  2. ./engine/kickoff.sh $PLAN_NAME"
+  echo "  2. /prd-review $PLAN_NAME      (in Claude Code)"
   echo "  3. ./engine/ralph.sh 20 $PLAN_NAME"
 else
   echo "  1. Add your PRD:  cp your-prd.json $TARGET/specs/prd-my-plan.json"
   echo "  2. Set RALPH_PLAN=my-plan in $TARGET/.ralphrc"
   echo "  3. cd $TARGET"
-  echo "  4. ./engine/kickoff.sh my-plan"
+  echo "  4. /prd-review my-plan          (in Claude Code)"
   echo "  5. ./engine/ralph.sh 20 my-plan"
 fi

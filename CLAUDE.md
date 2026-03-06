@@ -6,7 +6,7 @@ Project template for Ralph — an autonomous TDD development loop powered by Cla
 
 - `create-project.sh` — Creates a new project from this template at a target path
 - `engine/ralph.sh` — The autonomous loop: spawns fresh Claude `--print` iterations, tracks progress, circuit breakers
-- `engine/kickoff.sh` — Pre-flight PRD validation via one-shot Claude analysis
+- `.claude/skills/prd-review/` — PRD review skill: `/prd-review [plan-name]` to review and auto-fix a PRD before running Ralph
 - `engine/prompt.md` — Prompt injected into each Ralph iteration (RED-GREEN-REFACTOR workflow)
 - `engine/snapshot.sh` — Generates `codebase-snapshot.md` between iterations (file tree, exports, imports, tests)
 - `specs/prd-<plan>.json` — Product requirements documents (user stories with acceptance criteria)
@@ -30,10 +30,14 @@ Project template for Ralph — an autonomous TDD development loop powered by Cla
 ## How It Works
 
 1. User creates a project: `./create-project.sh ~/projects/my-app my-prd.json [plan-name]`
-2. User reviews PRD: `./engine/kickoff.sh [plan-name]`
+2. User reviews PRD: `/prd-review [plan-name]`
 3. User starts autonomous loop: `./engine/ralph.sh 20 [plan-name]`
 4. Each iteration: fresh Claude process reads PRD + progress, picks highest-priority incomplete story, does RED-GREEN-REFACTOR, commits, appends to progress.txt
 5. Circuit breakers halt on: no progress (3 loops), same error (5 loops), rate limits
+
+## Agent Usage
+
+Use sub-agents liberally for independent tasks to maximise time efficiency and preserve context window.
 
 ## Codebase Patterns
 

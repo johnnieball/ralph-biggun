@@ -69,15 +69,6 @@ fi
 
 echo "Using PRD: $PRD_PATH"
 
-# Kickoff gate — ensure PRD has been reviewed before AFK execution
-if [ "${RALPH_SKIP_KICKOFF:-0}" != "1" ]; then
-  if [ ! -f ".ralph-kickoff-complete" ]; then
-    echo "ERROR: Kickoff not completed. Run ./engine/kickoff.sh first."
-    echo "       To skip: RALPH_SKIP_KICKOFF=1 ./engine/ralph.sh"
-    exit 1
-  fi
-fi
-
 # Automatic log file — mirror all output to timestamped log
 LOG_DIR="logs"
 mkdir -p "$LOG_DIR"
@@ -312,8 +303,24 @@ $ralph_commits"
     break  # No rate limit — proceed with this iteration's result
   done
 
-  # Skip remaining processing if claude failed completely
+  # Even if rate-limited out, check last response for exit signals before skipping
   if [ "$claude_ok" = false ]; then
+    if [ -s "$tmpfile" ]; then
+      result=$(jq -r "$final_result" "$tmpfile" 2>/dev/null || echo "")
+      if [[ "$result" == *"<promise>COMPLETE</promise>"* ]] || [[ "$result" == *"<promise>NO MORE TASKS</promise>"* ]]; then
+        echo ""
+        echo "Ralph complete after $i iterations (detected in rate-limited response)."
+        exit_reason="complete"
+        exit 0
+      fi
+      exit_signal=$(echo "$result" | sed -n '/---RALPH_STATUS---/,/---END_RALPH_STATUS---/p' | grep -i "EXIT_SIGNAL:" | head -1 | awk '{print $2}' || echo "")
+      if [ "$exit_signal" = "true" ]; then
+        echo ""
+        echo "Ralph received EXIT_SIGNAL after $i iterations (detected in rate-limited response)."
+        exit_reason="exit_signal"
+        exit 0
+      fi
+    fi
     continue
   fi
 

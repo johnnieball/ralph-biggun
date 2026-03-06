@@ -10,7 +10,7 @@ The last 10 RALPH commits (SHA, date, full message) have been appended to the bo
 
 4. `codebase-snapshot.md` — If this file exists, read it. It contains a deterministic snapshot of the codebase generated between iterations: file tree, public exports, import graph, test counts, and alerts. Compare the import graph against `specs/architecture.md` dependency rules. Flag any violations in your iteration notes.
 
-5. `specs/architecture.md` — If this file contains only HTML comment placeholders (`<!-- Generated from PRD at kickoff`), populate it before starting story work:
+5. `specs/architecture.md` — If this file contains only HTML comment placeholders (`<!-- Generated from PRD`), populate it before starting story work:
    - Read `__PRD_PATH__` and identify the modules, their responsibilities, and dependency direction
    - Fill in Modules, Dependency Rules, and Hard Constraints with concrete entries
    - Keep it under 20 lines total
@@ -384,7 +384,7 @@ RECOMMENDATION: Blocked on [specific dependency] - need [what's needed]
 
 The following files and directories are part of Ralph's infrastructure. NEVER delete, move, rename, or overwrite these under any circumstances:
 
-- `engine/` (entire directory - prompt.md, ralph.sh, kickoff.sh, snapshot.sh)
+- `engine/` (entire directory - prompt.md, ralph.sh, snapshot.sh)
 - `specs/` (entire directory - architecture.md, prd.json structure)
 - `skills/` (entire directory and all contents)
 - `progress.txt` (append only - never replace, never delete content)

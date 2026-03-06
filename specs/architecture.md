@@ -1,19 +1,30 @@
-# Architecture - PROJECT_NAME
+# Architecture - Branded Deck Generator
 
 ## Modules
 
-<!-- Generated from PRD at kickoff. List each source module and its single responsibility. -->
-<!-- Format: `src/module.ts` - One sentence describing what this module owns. -->
-<!-- Example: `src/schema.ts` - Owns all Zod schemas and parse functions. No I/O, no rendering. -->
+- `src/shared/schemas/` - Zod schemas and types (DeckJSON, BrandProfile, TextWithHighlight, BodyBlock, Callout). Pure, no I/O.
+- `src/shared/config/` - Format registry, constants. Pure data.
+- `src/shared/layouts/` - Layout registry (register, lookup, validate). No rendering.
+- `src/shared/brand-profiles/` - Hardcoded brand data objects.
+- `src/renderer/` - ThemeProvider, SlideWrapper, DeckRenderer, primitives. React rendering only.
+- `src/layouts/` - Individual layout components (title-slide, single-column, etc.). Each = schema.ts + Component.tsx + index.ts.
+- `src/server/` - Hono API server, routes, agent loop. HTTP/IO boundary.
+- `src/pages/` - Frontend React pages (chat UI, preview, render route).
+- `src/components/` - Shared UI components (ChatPanel, SlidePreview, etc.).
+- `src/hooks/` - React hooks. `src/styles/` - CSS globals, font imports. `src/test-utils/` - Test harness utilities.
 
 ## Dependency Rules
 
-<!-- Generated from PRD at kickoff. State which modules can import from which. -->
-<!-- Format: "X can import from Y. X must never import from Z." -->
-<!-- Keep to the critical boundaries only - don't list every valid import. -->
+- `shared/` must not import from `renderer/`, `layouts/`, `server/`, `pages/`, `components/`
+- `renderer/` can import from `shared/`. Must not import from `server/`, `pages/`, `layouts/`
+- `layouts/` can import from `shared/` and `renderer/primitives/`. Must not import from `server/`, `pages/`
+- `server/` can import from `shared/`. Must not import from `renderer/` or `layouts/` (except SSR entry point)
+- `pages/` and `components/` can import from `shared/`, `renderer/`, `layouts/`
 
 ## Hard Constraints
 
-<!-- 3-5 inviolable rules. No rationale, just the rule. -->
-<!-- Example: "All file I/O is isolated in loader and builder modules. Renderer and schema modules must be pure." -->
-<!-- Example: "Content types use Zod discriminated unions. Do not use type assertions to narrow." -->
+- Agent produces only DeckJSON/DeckDiff — never JSX, React components, or CSS
+- All theming via CSS custom properties — zero hex literals in layout component files
+- Each layout = exactly 3 files: schema.ts, Component.tsx, index.ts. No other files change to add a layout.
+- Bun is the runtime and package manager everywhere — no npm, no yarn, no Node.js
+- All external API calls injected via AgentProvider interface, never module-level singletons

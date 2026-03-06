@@ -50,7 +50,6 @@ EOF
 
 # Set permissions
 chmod +x engine/ralph.sh
-chmod +x engine/kickoff.sh
 [ -f engine/snapshot.sh ] && chmod +x engine/snapshot.sh
 [ -f .claude/hooks/block-dangerous-git.sh ] && chmod +x .claude/hooks/block-dangerous-git.sh
 

@@ -1,0 +1,1123 @@
+{
+  "project": "branded-deck-generator",
+  "branchName": "ralph/branded-deck-generator-mvp",
+  "description": "An AI-powered presentation generator that takes natural language briefs and produces brand-consistent slide decks as PDFs. Built with Bun, React 18, TypeScript, Hono, Tailwind CSS, and the Anthropic SDK. Users describe what they want conversationally; the AI agent generates structured DeckJSON documents that a deterministic rendering pipeline converts into themed React components and exports as pixel-perfect PDFs via Puppeteer. Phase 0 validates the rendering pipeline end-to-end with no AI. Phase 1 adds the Claude agent loop, conversational editing via diffs, 15 layout components, and a minimal chat-based UI.",
+  "techStack": {
+    "runtime": "Bun 1.x",
+    "framework": "React 18 + Vite (frontend), Hono (API server)",
+    "packageManager": "Bun",
+    "database": "Filesystem (JSON files in data/ directory)",
+    "styling": "Tailwind CSS 3 + CSS custom properties for brand theming",
+    "testing": "Vitest + React Testing Library",
+    "other": [
+      "TypeScript 5.x",
+      "Zod (schema validation)",
+      "Puppeteer (headless Chromium for PDF export)",
+      "@fontsource/poppins + @fontsource/space-grotesk (fonts)",
+      "lucide-react (icons)",
+      "@anthropic-ai/sdk (Claude API)",
+      "Docker (oven/bun base image + Chromium)",
+      "React Router v6",
+      "pdf-parse (dev dependency, PDF page count assertions in tests)"
+    ]
+  },
+  "environment": [
+    {
+      "variable": "ANTHROPIC_API_KEY",
+      "description": "Anthropic API key for Claude Sonnet calls (deck generation and editing)",
+      "required": true
+    },
+    {
+      "variable": "PORT",
+      "description": "HTTP server port for the Hono API. Default 3000",
+      "required": false
+    },
+    {
+      "variable": "VITE_API_URL",
+      "description": "API server URL for the Vite frontend to call. Default http://localhost:3000",
+      "required": false
+    },
+    {
+      "variable": "PUPPETEER_EXECUTABLE_PATH",
+      "description": "Path to Chromium binary inside Docker container. Default: Puppeteer bundled Chromium",
+      "required": false
+    },
+    {
+      "variable": "RENDER_BASE_URL",
+      "description": "URL the Puppeteer process loads to render slides for PDF export. Default http://localhost:5173",
+      "required": false
+    },
+    {
+      "variable": "DATA_DIR",
+      "description": "Directory for persisted deck JSON files and conversation history. Default ./data",
+      "required": false
+    }
+  ],
+  "invariants": [
+    "The agent NEVER generates JSX, React components, CSS, or any rendering code. It produces only structured DeckJSON documents and DeckDiff operations.",
+    "DeckJSON is the single source of truth for all deck content. The server holds the canonical document; the agent returns targeted diffs for edits, never full regeneration unless explicitly restructuring.",
+    "All visual theming flows through CSS custom properties set from the BrandProfile at render time. No layout component hardcodes color, font, or spacing values. Zero hex literals in layout component files.",
+    "Adding a new layout requires exactly three artifacts: one React component file, one Zod content schema, one entry in the layout registry. No other files change.",
+    "Schema validation is the safety net, not the prompt. The agent's output is validated against Zod schemas before rendering. Invalid output triggers one retry with the validation error as context.",
+    "The same DeckJSON rendered against the same BrandProfile always produces identical visual output. Rendering is deterministic.",
+    "PDF export output is visually identical to browser preview. Both use the same React components, same CSS custom properties, same font loading.",
+    "Character limits in layout schemas are enforced as warnings, not hard rejections. The renderer handles overflow gracefully (font size reduction, then truncation with ellipsis).",
+    "Bun is the runtime and package manager everywhere \u2014 project scripts, Docker container, CI. No npm, no yarn, no Node.js.",
+    "All external API calls (Anthropic SDK) are injected via the AgentProvider interface, never imported as module-level singletons. All tests use MockAgentProvider.",
+    "Every layout component passes the layout contract test: renders without crash inside ThemeProvider + SlideWrapper, contains no hardcoded hex color literals, reads all theming from CSS custom properties."
+  ],
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Initialize Bun project with TypeScript",
+      "description": "Create the project root with Bun as runtime and package manager, TypeScript in strict mode, and the directory structure for a frontend + API server monorepo.",
+      "workstream": "Infrastructure",
+      "acceptanceCriteria": [
+        "`package.json` exists at root, contains `\"type\": \"module\"`, and `JSON.parse` succeeds without error.",
+        "`tsconfig.json` exists, contains `\"strict\": true` and `\"jsx\": \"react-jsx\"`, and includes path alias `\"@/*\"` resolving to `[\"src/*\"]`.",
+        "Directories exist and are resolvable: `src/shared/`, `src/server/`, `src/renderer/`, `src/layouts/`, `src/pages/`, `src/styles/`, `src/components/`, `src/hooks/`, `src/test-utils/`, `public/`, `scripts/`, `fixtures/`.",
+        "`.env.example` exists and contains all six variable names: ANTHROPIC_API_KEY, PORT, VITE_API_URL, PUPPETEER_EXECUTABLE_PATH, RENDER_BASE_URL, DATA_DIR.",
+        "`.gitignore` excludes node_modules, dist, .env, data/, output/, bun.lockb."
+      ],
+      "priority": 1,
+      "dependsOn": [],
+      "passes": false,
+      "notes": "Workstream: Infrastructure. This is the bare skeleton \u2014 no frameworks, no dependencies beyond TypeScript. Vite (US-002), Hono (US-003), and Vitest (US-004) are added separately. Use `bun init` then modify the output."
+    },
+    {
+      "id": "US-002",
+      "title": "Configure Vite with React frontend scaffold",
+      "description": "Set up Vite as the frontend build tool with the React plugin, dev server on port 5173, and API proxy to the Hono server.",
+      "workstream": "Infrastructure",
+      "acceptanceCriteria": [
+        "`vite.config.ts` uses `@vitejs/plugin-react`, dev server runs on port 5173, and proxies `/api/*` requests to `http://localhost:${PORT || 3000}`.",
+        "`src/main.tsx` renders a React root into `#root` in `index.html`.",
+        "`src/App.tsx` exports a placeholder component that renders `<div>Branded Deck Generator</div>`.",
+        "`bun run dev:client` starts the Vite dev server and the placeholder renders at `http://localhost:5173`."
+      ],
+      "priority": 2,
+      "dependsOn": ["US-001"],
+      "passes": false,
+      "notes": "Workstream: Infrastructure. The proxy config is essential \u2014 without it, frontend fetch calls to /api/* fail during development. The proxy target reads PORT from env so it stays in sync with the Hono server. Tailwind is added in US-015."
+    },
+    {
+      "id": "US-003",
+      "title": "Configure Hono API server with CORS",
+      "description": "Set up the Hono HTTP server with a health endpoint and CORS middleware allowing requests from the Vite frontend origin.",
+      "workstream": "Infrastructure",
+      "acceptanceCriteria": [
+        "`src/server/index.ts` exports a Hono app that listens on `PORT` (default 3000).",
+        "`GET /api/health` returns `200` with body `{ \"status\": \"ok\" }`.",
+        "CORS middleware is configured: `Access-Control-Allow-Origin` includes the VITE_API_URL origin (default `http://localhost:5173`), `Access-Control-Allow-Methods` includes GET, POST, DELETE, and OPTIONS.",
+        "`OPTIONS` preflight requests to any `/api/*` path return `204` with the CORS headers.",
+        "`bun run dev:server` starts the Hono server. `bun run dev` runs both `dev:client` and `dev:server` concurrently via `concurrently`."
+      ],
+      "priority": 3,
+      "dependsOn": ["US-001", "US-002"],
+      "passes": false,
+      "notes": "Workstream: Infrastructure. Use Hono's built-in `cors()` middleware from `hono/cors`. Depends on US-002 because the combined `dev` script references `dev:client` (Vite). The server must also be runnable independently via `bun run src/server/index.ts` for the PDF pipeline."
+    },
+    {
+      "id": "US-004",
+      "title": "Configure Vitest with jsdom environment",
+      "description": "Set up Vitest as the test runner with jsdom for React component testing, path aliases matching tsconfig, and a passing canary test.",
+      "workstream": "Infrastructure",
+      "acceptanceCriteria": [
+        "`vitest.config.ts` uses jsdom environment, resolves `@/` path alias to `src/`, and includes `src/**/*.test.{ts,tsx}` as test files.",
+        "React Testing Library (`@testing-library/react`, `@testing-library/jest-dom`) is installed as dev dependencies.",
+        "A canary test at `src/__tests__/setup.test.ts` asserts `1 + 1 === 2` and passes.",
+        "`bun run test` executes Vitest and the canary test passes with exit code 0."
+      ],
+      "priority": 2,
+      "dependsOn": ["US-001"],
+      "passes": false,
+      "notes": "Workstream: Infrastructure. Include `@testing-library/jest-dom/vitest` in the setup file for custom matchers (toBeInTheDocument, etc). Vitest shares Vite's transform config but needs its own file for environment and test patterns."
+    },
+    {
+      "id": "US-005",
+      "title": "Configure Docker container with Chromium",
+      "description": "Create a Dockerfile that packages Bun, Chromium, and font dependencies into a single container for running the API server and PDF export.",
+      "workstream": "Infrastructure",
+      "acceptanceCriteria": [
+        "Dockerfile exists at project root, starts with `FROM oven/bun:1`, and includes an `apt-get install` command for `chromium-browser`.",
+        "PUPPETEER_EXECUTABLE_PATH is set as an ENV in the Dockerfile pointing to the installed Chromium path.",
+        "`docker build -t branded-deck-generator .` completes without errors.",
+        "`docker run -p 3000:3000 branded-deck-generator` starts the Hono server and `GET /api/health` returns 200.",
+        "`.dockerignore` excludes node_modules, .env, data/, dist/, .git, output/."
+      ],
+      "priority": 4,
+      "dependsOn": ["US-003"],
+      "passes": false,
+      "notes": "Workstream: Infrastructure. Chromium must run with --no-sandbox inside Docker. @fontsource packages are installed at build time so Puppeteer renders with correct fonts."
+    },
+    {
+      "id": "US-006",
+      "title": "Configure font loading with @fontsource",
+      "description": "Install and configure Poppins and Space Grotesk font packages so they're available in both client-side preview and server-side rendering.",
+      "workstream": "Infrastructure",
+      "acceptanceCriteria": [
+        "`@fontsource/poppins` (weights 400, 500, 600, 700) and `@fontsource-variable/space-grotesk` are installed as dependencies.",
+        "`src/styles/fonts.ts` imports all required font weights and exports nothing (side-effect-only module).",
+        "`src/styles/fonts.ts` is imported in `src/main.tsx` so fonts load in the Vite dev server.",
+        "Test: importing `src/styles/fonts.ts` does not throw. The module resolves all @fontsource sub-path imports without missing module errors."
+      ],
+      "priority": 3,
+      "dependsOn": ["US-002", "US-004"],
+      "passes": false,
+      "notes": "Workstream: Infrastructure. Dynamic Google Fonts per brand is Phase 2+. For now, only Poppins and Space Grotesk. The server-side render entry (US-040) also imports this file. Visual font rendering is a manual review item, not a unit test assertion \u2014 jsdom cannot verify which font rendered."
+    },
+    {
+      "id": "US-007",
+      "title": "Define TextWithHighlight Zod schema",
+      "description": "Create the reusable TextWithHighlight schema \u2014 a text string with an optional accent-highlighted substring, used by nearly every layout's headline.",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "Importing `src/shared/schemas/text-with-highlight.ts` exports `TextWithHighlightSchema` (a Zod schema) and `TextWithHighlight` (a TypeScript type). Calling `.parse()` with `{ text: 'Hello', highlight: null }` returns the parsed object.",
+        "Calling `.parse()` with `{ text: 'Revenue grew 180%', highlight: '180%' }` succeeds because `'180%'` is a substring of the text.",
+        "Parsing `{ text: \"Revenue grew 180%\", highlight: \"180%\" }` succeeds. Parsing `{ text: \"Revenue grew 180%\", highlight: \"200%\" }` fails with the substring error.",
+        "Parsing `{ text: \"Hello world\", highlight: null }` succeeds."
+      ],
+      "priority": 2,
+      "dependsOn": ["US-001", "US-004"],
+      "passes": false,
+      "notes": "Workstream: Data. Imported by every layout content schema. The refinement must return false (not throw). Export from barrel `src/shared/schemas/index.ts`. If highlight appears multiple times in text, the renderer (AccentText component) highlights only the first occurrence."
+    },
+    {
+      "id": "US-008",
+      "title": "Define BodyBlock and Callout Zod schemas",
+      "description": "Create the shared content block schemas used by multiple layouts: BodyBlock (discriminated union of paragraph, bullets, quote) and Callout (highlighted sidebar box).",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "`src/shared/schemas/body-block.ts` exports `BodyBlockSchema` as a Zod discriminated union on `type`: `'paragraph'` (text: string), `'bullets'` (items: string[]), `'quote'` (quote: string, attribution: string | null).",
+        "`src/shared/schemas/callout.ts` exports `CalloutSchema` with: `title` (string max 60), `body` (string max 150), `style` (`'accent'` | `'muted'`).",
+        "Parsing `{ type: \"paragraph\", text: \"Hello\" }` succeeds. Parsing `{ type: \"invalid\" }` fails. Callout with 61-char title fails.",
+        "Inferred types `BodyBlock`, `Callout` are exported alongside the schemas."
+      ],
+      "priority": 2,
+      "dependsOn": ["US-001", "US-004"],
+      "passes": false,
+      "notes": "Workstream: Data. BodyBlock is used by single-column, two-column, and image-with-text. Callout is used by single-column only. Export from barrel."
+    },
+    {
+      "id": "US-009",
+      "title": "Define DeckJSON top-level Zod schemas",
+      "description": "Create the TypeScript interfaces and Zod validation schemas for the top-level DeckJSON document envelope \u2014 slides, settings, and metadata.",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "Importing `src/shared/schemas/deck-json.ts` exports `DeckJSONSchema`, `DeckSettingsSchema`, `SlideSchema` as Zod schemas, and inferred types `DeckJSON`, `DeckSettings`, `Slide`.",
+        "`DeckJSONSchema.parse()` succeeds on a complete valid document (with id, version, format, title, brandProfileId, settings, slides array). Calling `.parse()` on a document missing `slides` throws a ZodError.",
+        "`Slide` fields: `id` (string), `layoutId` (string), `variant` (`'dark'` | `'light'`), `backgroundId` (string | null), `content` (z.record(z.string(), z.unknown())), `speakerNotes` (string | null), `transition` (`'none'` | `'fade'`).",
+        "Valid document parses. Missing `slides` fails. Invalid `format` fails."
+      ],
+      "priority": 2,
+      "dependsOn": ["US-001", "US-004"],
+      "passes": false,
+      "notes": "Workstream: Data. Slide.content is z.record(z.string(), z.unknown()) at this level \u2014 per-layout validation happens in the registry (US-013). DeckSettings includes aspectRatio ('16:9' | '4:3' | 'a4-portrait'), showSlideNumbers (boolean), slideNumberStyle ('numeric' | 'padded'), defaultVariant ('dark' | 'light')."
+    },
+    {
+      "id": "US-010",
+      "title": "Define BrandProfileV1 Zod schema and type",
+      "description": "Create the V1 brand profile type covering colors, typography, logo references, and tone \u2014 the minimum for themed rendering.",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "Importing `src/shared/schemas/brand-profile.ts` exports `BrandProfileV1Schema` as a Zod schema and `BrandProfileV1` as an inferred type.",
+        "`BrandProfileV1Schema.parse()` succeeds on a complete profile object with all color, typography, logo, and tone fields. Parsing with missing `colors.accent` throws a ZodError.",
+        "Typography fields: `typography.headingFont`, `.bodyFont` (strings), `.monoFont` (string | null), `.headingWeight`, `.bodyWeight` (numbers), `.sizeScale` (`'compact'` | `'standard'` | `'generous'`). Logo fields: `logo.primaryUrl`, `.lightUrl` (strings), `.iconUrl` (string | null), `.preferredHeight` (number). `tone` (`'corporate-formal'` | `'professional-friendly'` | `'bold-casual'`).",
+        "Valid profile parses. Missing `colors.accent` fails. Invalid `tone` fails."
+      ],
+      "priority": 2,
+      "dependsOn": ["US-001", "US-004"],
+      "passes": false,
+      "notes": "Workstream: Data. Strict subset of the full BrandProfile \u2014 fields added in Phase 2+ are additive. ID and name fields also present."
+    },
+    {
+      "id": "US-011",
+      "title": "Create hardcoded Axiiom brand profile",
+      "description": "Populate a BrandProfileV1 with Axiiom brand values and create placeholder logo SVGs.",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "`src/shared/brand-profiles/axiiom.ts` exports a `BrandProfileV1` object with: primary `'#0E1F3D'`, secondary `'#1B3B73'`, accent `'#42F2B4'`, background.dark `'#0E1F3D'`, background.light `'#F3F4F6'`, text.onDark `'#FFFFFF'`, text.onLight `'#0E1F3D'`, text.muted `'#6B7280'`, accentOnLightSafe `false`.",
+        "Typography: headingFont `'Poppins'`, bodyFont `'Space Grotesk'`, monoFont `'Space Grotesk'`, headingWeight `600`, bodyWeight `400`, sizeScale `'standard'`, tone `'professional-friendly'`.",
+        "Logo URLs point to `/brands/axiiom/logo-primary.svg` and `/brands/axiiom/logo-light.svg`. Placeholder SVG files exist at `public/brands/axiiom/` (simple rectangles with text).",
+        "The exported object passes `BrandProfileV1Schema.parse()` without errors."
+      ],
+      "priority": 3,
+      "dependsOn": ["US-010"],
+      "passes": false,
+      "notes": "Workstream: Data. accentOnLightSafe=false because #42F2B4 fails WCAG AA on light backgrounds. Layout components must check this flag."
+    },
+    {
+      "id": "US-012",
+      "title": "Define format registry for asset types",
+      "description": "Create the format registry mapping asset formats to page dimensions, orientation, and CSS class names.",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "`src/shared/config/format-registry.ts` exports `FORMAT_REGISTRY` mapping format IDs to `FormatConfig` objects (`{ pageWidth, pageHeight, landscape, cssClass }`).",
+        "Format `'deck-16-9'`: 1920\u00d71080, landscape true, cssClass `'slide'`. Format `'handout-a4'`: 794\u00d71123, landscape false, cssClass `'handout'`.",
+        "`getFormatFromAspectRatio(aspectRatio)` maps `'16:9'` \u2192 deck-16-9, `'a4-portrait'` \u2192 handout-a4, `'4:3'` \u2192 throws `Error('Format 4:3 is not yet supported')`.",
+        "Tests: dimensions are positive, landscape true iff width > height, `'4:3'` throws."
+      ],
+      "priority": 2,
+      "dependsOn": ["US-001", "US-004"],
+      "passes": false,
+      "notes": "Workstream: Data. Adding a new format = new registry entry + new case in getFormatFromAspectRatio."
+    },
+    {
+      "id": "US-013",
+      "title": "Build layout registry mechanism",
+      "description": "Create the layout registry \u2014 the central mapping from layout IDs to their React component, Zod content schema, and metadata.",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "`src/shared/layouts/registry.ts` exports types `LayoutRegistryEntry` and `LayoutComponentProps` (content, brandProfile, variant, format).",
+        "`registerLayout(entry)` adds an entry; duplicate ID throws `Error('Layout {id} is already registered')`. `clearRegistry()` resets for test isolation.",
+        "`getLayout(layoutId)` returns the entry or throws `Error('Layout not found: {id}')`. `getLayoutIds()` returns sorted array of registered IDs.",
+        "`validateSlideContent(layoutId, content)` delegates to the layout's Zod schema and returns `safeParse` result.",
+        "Tests: register then retrieve works; duplicate throws; unknown ID throws; validateSlideContent delegates correctly."
+      ],
+      "priority": 3,
+      "dependsOn": ["US-009", "US-010", "US-012"],
+      "passes": false,
+      "notes": "Workstream: Data. Use a module-level Map. LayoutRegistryEntry fields: id, name, description (strings), contentSchema (ZodSchema), component (React.ComponentType<LayoutComponentProps>), constraints (Record<string, number>). The registry is populated by layout index.ts files calling registerLayout() on import."
+    },
+    {
+      "id": "US-014",
+      "title": "Build generateThemeCSS pure function",
+      "description": "Create the pure function converting a BrandProfileV1 into a CSS string of custom properties on :root.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "`src/renderer/theme-provider.ts` exports `generateThemeCSS(profile: BrandProfileV1): string`.",
+        "Output CSS sets: `--brand-primary`, `--brand-secondary`, `--brand-accent`, `--brand-bg-dark`, `--brand-bg-light`, `--brand-text-on-dark`, `--brand-text-on-light`, `--brand-text-muted`, `--brand-heading-font`, `--brand-body-font`, `--brand-mono-font`, `--brand-heading-weight`, `--brand-body-weight`, `--brand-accent-on-light-safe` (1 or 0).",
+        "`generateThemeCSS(axiiomProfile)` returns a string containing `--brand-primary: #0E1F3D` and `--brand-accent: #42F2B4`.",
+        "The function is pure: no DOM access, no side effects."
+      ],
+      "priority": 3,
+      "dependsOn": ["US-010", "US-011"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Used in two contexts: client-side ThemeProvider <style> injection and server-side HTML template inlining. Mono font falls back to 'monospace' when null."
+    },
+    {
+      "id": "US-015",
+      "title": "Extend Tailwind config with CSS custom properties",
+      "description": "Configure Tailwind to generate utility classes referencing CSS custom properties from the brand profile.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Importing `tailwind.config.ts` exports a config object whose `theme.extend.colors.brand.primary` equals `'var(--brand-primary)'` and `theme.extend.colors.brand.accent` equals `'var(--brand-accent)'`.",
+        "The exported config's `theme.extend.fontFamily.display` includes `'var(--brand-heading-font)'` as the first entry.",
+        "Global CSS `src/styles/globals.css` includes `@tailwind base; @tailwind components; @tailwind utilities;` and is imported in `src/main.tsx`.",
+        "Config is syntactically valid and Vite build succeeds."
+      ],
+      "priority": 4,
+      "dependsOn": ["US-002", "US-014"],
+      "passes": false,
+      "notes": "Workstream: Rendering. var() references resolve at runtime when ThemeProvider injects custom properties. Do NOT add hardcoded Axiiom colors to the Tailwind config."
+    },
+    {
+      "id": "US-016",
+      "title": "Build ThemeProvider React component",
+      "description": "Create the React component that injects brand-specific CSS custom properties into the document head.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Importing `src/renderer/ThemeProvider.tsx` exports a React component. Rendering it with Axiiom `brandProfile` and a child `<div>` produces a DOM tree containing a `<style>` tag with `data-brand-theme` attribute.",
+        "The injected `<style>` tag's text content contains `--brand-primary: #0E1F3D` (matching the Axiiom profile's primary color).",
+        "Rendering a `<div className=\"bg-brand-primary\">` inside ThemeProvider with Axiiom profile produces a `<div>` element. The document head contains a `<style>` tag whose text includes `--brand-primary`.",
+        "Re-rendering ThemeProvider with a different `brandProfile` prop replaces the `<style>` tag content. The head never contains more than one `<style data-brand-theme>` tag. Unmounting removes the tag."
+      ],
+      "priority": 5,
+      "dependsOn": ["US-014", "US-015"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Use the data-brand-theme attribute to find/replace the tag. For SSR (US-040), the CSS is inlined directly into the HTML template, not via this component."
+    },
+    {
+      "id": "US-017",
+      "title": "Build SlideWrapper container component",
+      "description": "Create the container that every slide renders inside \u2014 fixed dimensions, variant styling, slide numbers, and an edge-to-edge mode for full-bleed layouts.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "`src/renderer/SlideWrapper.tsx` exports a component accepting: `variant` ('dark'|'light'), `format` (FormatConfig), `slideNumber` (number|null), `slideNumberStyle` ('numeric'|'padded'), `edgeToEdge` (boolean, default false), `children`.",
+        "Renders a `<section>` element with `style` containing `width: {format.pageWidth}px` and `height: {format.pageHeight}px`, CSS class `format.cssClass`, and `overflow: hidden`.",
+        "When `edgeToEdge` is false, children render inside a padded container (80px for 1920\u00d71080, scaled proportionally for other formats). When true, no padding wrapper.",
+        "Slide number in bottom-right: mono 12px muted text. Padded style zero-pads to 2 digits.",
+        "Test: render inside ThemeProvider with Axiiom profile. The `<section>` has class `'slide'` and style containing `width: 1920px`. Number `5` renders as text `'5'` (numeric) or `'05'` (padded)."
+      ],
+      "priority": 6,
+      "dependsOn": ["US-012", "US-016"],
+      "passes": false,
+      "notes": "Workstream: Rendering. edgeToEdge is for full-image layout (US-037). Proportional padding for A4: ~33px. jsdom cannot compute CSS custom property values, so test assertions check class names, style attributes, and text content \u2014 not computed colors. The actual color rendering is verified visually and via the layout contract test's no-hardcoded-hex check."
+    },
+    {
+      "id": "US-018",
+      "title": "Build layout contract test helper",
+      "description": "Create a reusable test harness enforcing the invariant that layout components render correctly inside ThemeProvider+SlideWrapper and contain no hardcoded brand values.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "`src/test-utils/layout-test-harness.tsx` exports `createLayoutTestHarness(Component, validContent, layoutId)` returning `{ contractTest, renderLayout, schemaTest }`.",
+        "`contractTest()` renders the component in ThemeProvider(Axiiom) + SlideWrapper(dark, deck-16-9) and asserts: no throw, rendered HTML contains zero hardcoded Axiiom hex literals (#0E1F3D, #42F2B4, #1B3B73, #F3F4F6 \u2014 excluding #000000 and transparent).",
+        "`renderLayout(content, variant?)` returns a React Testing Library render result for per-layout assertions.",
+        "`schemaTest(schema, validContent, invalidContent)` asserts valid parses and invalid rejects.",
+        "Test: a mock component rendering `<div style={{color:'#42F2B4'}}>` fails the hex check."
+      ],
+      "priority": 7,
+      "dependsOn": ["US-016", "US-017", "US-011"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Every layout story (US-023 to US-037) uses this harness for its contract test criterion. The hex check scans the rendered HTML string \u2014 catches inline styles but not Tailwind classes (correct, since those reference CSS custom properties)."
+    },
+    {
+      "id": "US-019",
+      "title": "Build SectionLabel shared component",
+      "description": "Create the reusable bracketed monospace label component used at the top of most layouts.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "`src/renderer/primitives/SectionLabel.tsx` accepts `label: string | null`.",
+        "Non-null: renders `[ {LABEL} ]` in mono font, uppercase, tracking 0.4em, ~11px, accent color at 80% opacity.",
+        "Null: returns null (renders nothing).",
+        "Test: label `'Overview'` produces `[ OVERVIEW ]`. Null produces empty."
+      ],
+      "priority": 5,
+      "dependsOn": ["US-015"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Square brackets, uppercase, wide tracking are the visual signature from the prototype. Used by ~10 layouts."
+    },
+    {
+      "id": "US-020",
+      "title": "Build AccentText shared component",
+      "description": "Create the reusable TextWithHighlight renderer that wraps the highlighted substring in the brand accent color with light-variant safety fallback.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "`src/renderer/primitives/AccentText.tsx` accepts: `content: TextWithHighlight`, `className: string`, `variant: 'dark'|'light'`, `accentOnLightSafe: boolean`.",
+        "Non-null highlight: splits text, wraps highlight in `<span>` with accent color. On light variant with `accentOnLightSafe: false`: span uses `var(--brand-text-on-light)` + bold instead of accent.",
+        "Null highlight: renders plain text, no accent styling.",
+        "Test: `{ text: 'Revenue grew 180%', highlight: '180%' }` dark variant \u2192 '180%' in accent span. Light + unsafe \u2192 bold, no accent color. First occurrence only."
+      ],
+      "priority": 5,
+      "dependsOn": ["US-007", "US-015"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Critical for Axiiom where green fails WCAG on light. String split: use indexOf to find first occurrence, then slice before/match/after."
+    },
+    {
+      "id": "US-021",
+      "title": "Build IconResolver shared component",
+      "description": "Create the dynamic lucide-react icon resolver with graceful fallback for unknown names.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "`src/renderer/primitives/IconResolver.tsx` accepts: `name: string | null`, `size: number` (default 24), `className?: string`.",
+        "Valid lucide-react name (e.g., `'zap'`): renders the SVG icon at the specified size.",
+        "Null or invalid name: renders nothing, does not throw.",
+        "Test: `'zap'` renders an SVG; `'nonexistent-xyz'` renders nothing; null renders nothing."
+      ],
+      "priority": 2,
+      "dependsOn": ["US-001", "US-004"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Import: `import * as icons from 'lucide-react'`. Convert kebab-case to PascalCase for lookup ('chart-bar' \u2192 'ChartBar'). Full lucide-react import is acceptable for Phase 1."
+    },
+    {
+      "id": "US-022",
+      "title": "Build BodyBlockRenderer shared component",
+      "description": "Create the reusable renderer for BodyBlock arrays \u2014 paragraph, bullets, and quote content blocks.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Importing `src/renderer/primitives/BodyBlockRenderer.tsx` exports a React component accepting `blocks: BodyBlock[]` and `variant: 'dark'|'light'`.",
+        "Rendering a paragraph block `{ type: 'paragraph', text: 'Hello world' }` produces a `<p>` element containing the text 'Hello world'.",
+        "Test: `[{ type: 'paragraph', text: 'Hello' }, { type: 'bullets', items: ['A','B'] }]` produces a `<p>` and `<ul>` with 2 `<li>`.",
+        "Bullet dots use accent color via `var(--brand-accent)`, not hardcoded hex."
+      ],
+      "priority": 5,
+      "dependsOn": ["US-008", "US-015"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Accent bullet dot: CSS `::before` pseudo-element or a dedicated span. Do not use default `<li>` disc. Used by single-column, two-column, image-with-text."
+    },
+    {
+      "id": "US-023",
+      "title": "Implement title-slide layout",
+      "description": "Build the opening/hero slide \u2014 large headline, subtitle, value proposition pills, presenter info, brand logo.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `headline` (TextWithHighlight, text max 120), `subtitle` (string|null max 200), `valueProps` (string[]|null, 2-4 items each max 40), `presenter` ({name,title}|null). Rejects headline > 120 chars.",
+        "Component renders: AccentText headline ~64px display font, subtitle ~24px muted, pills in horizontal row, presenter bottom-left, logo from brandProfile (lightUrl dark / primaryUrl light).",
+        "Registers with id `'title-slide'`.",
+        "Layout contract test passes.",
+        "Schema rejects `headline.text` of 121 characters."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-020"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Pattern-setting story. Three-file structure: schema.ts, TitleSlide.tsx, index.ts. Logo variant selection is a common pattern \u2014 extract helper if > 3 lines."
+    },
+    {
+      "id": "US-024",
+      "title": "Implement single-column layout",
+      "description": "Build the narrative workhorse \u2014 section label, headline, body blocks, and optional callout sidebar.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `sectionLabel` (string|null), `headline` (TextWithHighlight max 100), `body` (BodyBlock[] max 4), `callout` (Callout|null). Rejects > 4 body blocks.",
+        "Component renders: SectionLabel, AccentText headline, BodyBlockRenderer, callout box (accent: accent border; muted: subtle bg) to right of body on 70/30 split.",
+        "Registers with id `'single-column'`.",
+        "Layout contract test passes.",
+        "Null callout: body expands to full width."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-019", "US-020", "US-022"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Callout accent style: 3px left border var(--brand-accent). Muted: bg at 6% opacity."
+    },
+    {
+      "id": "US-025",
+      "title": "Implement stats-row layout",
+      "description": "Build the key metrics row \u2014 3-4 large numbers with labels and trend arrows.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `sectionLabel`, `headline` (TextWithHighlight max 100), `subheadline`, `stats` ({value max 10, label max 40, trend, prefix, suffix}[] exactly 3-4), `footnote` (max 150). Rejects 2 or 5 stats.",
+        "Component renders: stats in equal-width grid, values ~48px accent bold, labels ~16px 60% opacity, trend arrows (\u25b2 green/\u25bc red), prefix+value+suffix concatenated.",
+        "Registers with id `'stats-row'`.",
+        "Layout contract test passes.",
+        "Rendering 4 stats produces 4 value elements in the DOM."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-019", "US-020"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Trend arrows: Unicode \u25b2\u25bc, not icon imports. Stats grid: `grid-template-columns: repeat(N, 1fr)`. Footnote bottom in muted 12px."
+    },
+    {
+      "id": "US-026",
+      "title": "Implement two-column layout",
+      "description": "Build the side-by-side layout for comparisons with icons, headings, body blocks, and configurable divider.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `sectionLabel`, `headline` (TextWithHighlight max 100), `subheadline`, `leftColumn`/`rightColumn` ({heading max 60, icon, body: BodyBlock[] max 3}), `dividerStyle` ('line'|'gap'|'none'). Rejects heading > 60.",
+        "Component renders: equal columns, IconResolver for icon, heading bold, BodyBlockRenderer. Divider line = 1px 10% opacity; gap = 40px; none = nothing.",
+        "Registers with id `'two-column'`.",
+        "Layout contract test passes.",
+        "dividerStyle 'line' produces a visible divider element between columns."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-019", "US-020", "US-021", "US-022"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Column block schema defined inline in this layout's file. Vertical divider is a full-height element, not a border on either column."
+    },
+    {
+      "id": "US-027",
+      "title": "Implement section-divider layout",
+      "description": "Build the simplest layout \u2014 centered headline and optional subtitle for section transitions.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `headline` (TextWithHighlight max 60), `subtitle` (string|null max 120). Rejects headline > 60.",
+        "Component renders: headline centered both axes ~72px display bold, subtitle ~24px 60% opacity. No section label, no logo, no slide number area.",
+        "Registers with id `'section-divider'`.",
+        "Layout contract test passes.",
+        "Centering uses flexbox items-center justify-center."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-020"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Intentionally sparse \u2014 whitespace is the design. 72px is the largest headline in any layout."
+    },
+    {
+      "id": "US-028",
+      "title": "Implement quote layout",
+      "description": "Build the testimonial layout \u2014 decorative quotation mark, large quote text with accent highlight, attribution, context.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `quote` (TextWithHighlight max 300), `attribution` ({name max 40, role max 60}), `context` (string|null max 80). Rejects quote > 300.",
+        "Component renders: context muted italic ~14px, decorative `\"` at ~80px accent 20% opacity, AccentText quote ~32px display, attribution as `'Name \u2014 Role'` muted.",
+        "Registers with id `'quote'`.",
+        "Layout contract test passes.",
+        "Attribution separator is an em dash (\u2014), not a hyphen."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-020"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Decorative quote mark: Unicode U+201C or SVG path. Line-height ~1.4 for readability."
+    },
+    {
+      "id": "US-029",
+      "title": "Implement three-column-cards layout",
+      "description": "Build the glassmorphic three-card layout with decorative numbers, icons, and body/bullets mutual exclusion.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `sectionLabel`, `headline` (TextWithHighlight), `subheadline`, `cards` (tuple of 3: {number, icon, heading max 50, body max 150 | null, bullets [{text, highlight}] max 5 | null}). Zod refine rejects both body AND bullets non-null.",
+        "Component renders: 3 cards with glassmorphic style (border 10% white, bg 6% white, rounded-2xl, 24px padding), number ~48px mono accent 40%, icon, heading, body or bullets with optional highlight spans.",
+        "Registers with id `'three-column-cards'`.",
+        "Layout contract test passes.",
+        "Schema rejects card with both `body: 'text'` and `bullets: [{text:'x',highlight:null}]`."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-019", "US-020", "US-021"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Light variant: border at onLight/10%, bg at onLight/4%. Bullet highlight: accent 70% + bold."
+    },
+    {
+      "id": "US-030",
+      "title": "Implement comparison-table layout",
+      "description": "Build the structured table with column highlight and cross-field validation (row values match column count).",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `sectionLabel`, `headline`, `columns` ([{label, highlight: boolean}] 2-3), `rows` ([{label, values: string[]}] 3-10). Zod refine: every `row.values.length === columns.length`, message `'Row values count must match column count'`.",
+        "Component renders: table with bold headers, highlighted column gets accent header + subtle accent cell bg. \u2713 and \u2717 in cells render larger with color coding (accent / muted).",
+        "Registers with id `'comparison-table'`.",
+        "Layout contract test passes.",
+        "Schema rejects 3 columns with a row having 2 values."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-019", "US-020"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Borders: 1px 10% opacity. Cell padding 12-16px. Row labels left-aligned, values centered."
+    },
+    {
+      "id": "US-031",
+      "title": "Implement logo-grid layout",
+      "description": "Build the responsive logo grid with image fallback to styled placeholder boxes.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `sectionLabel`, `headline`, `logos` ([{imageUrl, label}] 4-16). Rejects < 4.",
+        "Component renders: CSS grid (4 cols for 4-8, 5 cols for 9-16), images max 120px\u00d760px contain, labels muted ~12px. Dark variant: white pill behind logos at 8% opacity.",
+        "Empty/failed imageUrl: styled placeholder (accent border, centered label).",
+        "Registers with id `'logo-grid'`. Contract test passes."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-019", "US-020"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Phase 1: imageUrl usually empty. Placeholder must look intentional."
+    },
+    {
+      "id": "US-032",
+      "title": "Implement image-with-text layout",
+      "description": "Build the split layout pairing a large image area with explanatory text.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "`src/layouts/image-with-text/schema.ts` exports `ImageWithTextContentSchema` that parses a valid content object with `sectionLabel`, `headline`, `image` ({url, alt, objectFit}), `body` (BodyBlock[] max 3), `imagePosition` ('left'|'right').",
+        "Component renders a two-part layout: when `imagePosition` is `'left'`, the first child container holds the image and the second holds headline + BodyBlockRenderer. Test: rendering with `imagePosition: 'left'` produces the image container before the text container in DOM order.",
+        "Empty/failed URL: branded placeholder (accent 10% bg, centered 'image' lucide icon, alt text).",
+        "Registers with id `'image-with-text'`. Contract test passes."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-019", "US-020", "US-021", "US-022"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Placeholder is primary visual for Phase 1. Image container: rounded corners on inner edge."
+    },
+    {
+      "id": "US-033",
+      "title": "Implement bullet-list layout",
+      "description": "Build the grouped bullet list with adaptive column arrangement based on group count.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `sectionLabel`, `headline`, `groups` ([{heading|null, items: string[] 2-8}] 1-4). Rejects 5 groups.",
+        "Component adapts: 1 group = centered, 2 = side-by-side, 3-4 = 2\u00d72 grid. Each: optional heading bold, accent-dot bullets.",
+        "Registers with id `'bullet-list'`. Contract test passes.",
+        "Rendering 2 groups produces two distinct column containers."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-019", "US-020"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Distinct from single-column bullets \u2014 this is for categorized/grouped content."
+    },
+    {
+      "id": "US-034",
+      "title": "Implement timeline layout",
+      "description": "Build the horizontal milestone timeline with track line and styled nodes.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `sectionLabel`, `headline`, `milestones` ([{date, title max 40, description|null max 120}] 3-7). Rejects 8.",
+        "Component renders: horizontal track (accent 30%), evenly distributed circle nodes (outline for past, filled for last/current), date above, title+description below.",
+        "Registers with id `'timeline'`. Contract test passes.",
+        "Rendering 5 milestones produces 5 elements with visible date text."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-019", "US-020"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Track: absolute-positioned line. Nodes: CSS grid justify-between. Circles ~16px diameter."
+    },
+    {
+      "id": "US-035",
+      "title": "Implement call-to-action layout",
+      "description": "Build the closing slide with headline, body, contact details with icons, and numbered next steps.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `headline`, `body` (max 200|null), `contactDetails` ({name, email, phone|null, linkedin|null}|null), `nextSteps` (string[] 1-4 each max 80 | null). Rejects 5 steps.",
+        "Component renders: headline centered ~48px, body, brand logo, contact block (lucide Mail/Phone/Linkedin icons per non-null field), numbered steps with accent numbers.",
+        "Both present: side by side 60/40. Only one: centered.",
+        "Registers with id `'call-to-action'`. Contract test passes."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-020", "US-021"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Only show icons for non-null contact fields."
+    },
+    {
+      "id": "US-036",
+      "title": "Implement team-grid layout",
+      "description": "Build the people grid with adaptive columns and initials placeholder for missing headshots.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "Schema: `sectionLabel`, `headline`, `members` ([{name max 30, role max 50, imageUrl|null, bio|null max 100}] 2-8). Rejects 9.",
+        "Component renders: adaptive grid (2\u21922cols, 3\u21923, 4\u21922\u00d72 or 4, 5-6\u21923, 7-8\u21924). Card: 120px circle (photo or initials on accent bg), name bold, role muted, optional bio.",
+        "No imageUrl: initials from first+last name segments, white on accent circle.",
+        "Registers with id `'team-grid'`. Contract test passes."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-019", "US-020"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Initials: split name on space, first char of first+last, uppercase. Single-word name: first 2 chars."
+    },
+    {
+      "id": "US-037",
+      "title": "Implement full-image layout",
+      "description": "Build the edge-to-edge image layout with gradient overlay and optional positioned text.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "`src/layouts/full-image/schema.ts` exports `FullImageContentSchema` that parses a valid object with `image` ({url, alt, objectFit}), `overlayText` (TextWithHighlight|null), `overlayPosition` ('bottom-left'|'bottom-right'|'center'|'top-left').",
+        "Component passes `edgeToEdge: true` to SlideWrapper. Test: the rendered `<section>` contains no padding container element (children render directly inside the section).",
+        "Empty URL: full-slide gradient from brand primary to secondary as placeholder.",
+        "Registers with id `'full-image'`. Contract test passes."
+      ],
+      "priority": 8,
+      "dependsOn": ["US-013", "US-018", "US-020"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Gradient direction matches overlayPosition. Text-shadow: `0 2px 8px rgba(0,0,0,0.5)`."
+    },
+    {
+      "id": "US-038",
+      "title": "Register all layouts and validate library",
+      "description": "Create the initialization function importing all 15 layouts and validate the complete library with an integration test fixture.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "`src/layouts/index.ts` exports `registerAllLayouts()` importing all 15 layout index files.",
+        "After calling `registerAllLayouts()`, `getLayoutIds()` returns exactly 15 sorted IDs: bullet-list, call-to-action, comparison-table, full-image, image-with-text, logo-grid, quote, section-divider, single-column, stats-row, team-grid, three-column-cards, timeline, title-slide, two-column.",
+        "`fixtures/all-layouts-deck.json` contains 15 slides (one per layout) with valid content. `validateSlideContent` passes for every slide.",
+        "`src/layouts/index.ts` is imported in both `src/server/index.ts` and `src/main.tsx` (verify via `grep 'layouts' src/server/index.ts src/main.tsx` matching import statements)."
+      ],
+      "priority": 9,
+      "dependsOn": [
+        "US-023",
+        "US-024",
+        "US-025",
+        "US-026",
+        "US-027",
+        "US-028",
+        "US-029",
+        "US-030",
+        "US-031",
+        "US-032",
+        "US-033",
+        "US-034",
+        "US-035",
+        "US-036",
+        "US-037"
+      ],
+      "passes": false,
+      "notes": "Workstream: Rendering. Fixture uses realistic B2B content from the migration guide examples. This validates the extensibility constraint: all 15 register via the same mechanism. The grep-based import check in criterion 4 ensures the wiring exists \u2014 the functional proof is criterion 2 (15 IDs returned)."
+    },
+    {
+      "id": "US-039",
+      "title": "Build DeckRenderer orchestrator component",
+      "description": "Create the component rendering a complete DeckJSON as a sequence of themed slides with error fallback for missing layouts.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "`src/renderer/DeckRenderer.tsx` accepts: `deck` (DeckJSON), `brandProfile` (BrandProfileV1), `printMode` (boolean, default false).",
+        "Wraps in ThemeProvider. Per slide: retrieves layout from registry, wraps in SlideWrapper (variant, format from aspectRatio, slide numbers if enabled), passes content/brandProfile/variant/format.",
+        "Unknown layoutId: renders error placeholder with layoutId and 'Layout not registered' \u2014 no crash.",
+        "printMode false: vertical stack. True: `page-break-after: always`.",
+        "Test: 3-slide deck renders all 3. Unknown layoutId renders placeholder."
+      ],
+      "priority": 10,
+      "dependsOn": ["US-017", "US-038"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Error placeholder prevents one bad ID from breaking the deck. Used by both preview panel and server-side HTML renderer."
+    },
+    {
+      "id": "US-040",
+      "title": "Build server-side HTML renderer",
+      "description": "Create the SSR entry point producing a complete HTML page from DeckJSON \u2014 what Puppeteer loads for PDF export.",
+      "workstream": "Rendering",
+      "acceptanceCriteria": [
+        "`src/server/render.tsx` exports `renderDeckToHTML(deck: DeckJSON, brandProfile: BrandProfileV1): string` returning complete HTML.",
+        "HTML includes: `<style>` with `generateThemeCSS` output, Tailwind CSS, `@font-face` declarations for Poppins and Space Grotesk, React SSR of DeckRenderer in printMode via `ReactDOMServer.renderToString`.",
+        "`<body>` has `data-ready=\"true\"` attribute. HTML contains `font-family:` followed by `Poppins`.",
+        "Hono `GET /render/:deckId` reads deck from DeckStore, renders HTML, returns `Content-Type: text/html`."
+      ],
+      "priority": 11,
+      "dependsOn": ["US-003", "US-006", "US-039", "US-046"],
+      "passes": false,
+      "notes": "Workstream: Rendering. Tailwind CSS access in SSR: use Tailwind's standalone CLI to pre-generate a CSS file via `bunx tailwindcss -i src/styles/globals.css -o src/server/tailwind-output.css`. Add a `bun run build:css` script. `renderDeckToHTML` reads this file via `Bun.file().text()` and inlines it in a `<style>` tag. The `data-ready` attribute replaces the prototype's 2-second font delay. Ensure `build:css` runs before tests that call `renderDeckToHTML`."
+    },
+    {
+      "id": "US-041",
+      "title": "Build Puppeteer PDF export service",
+      "description": "Create the service producing a multi-page PDF from the rendered HTML with deterministic, testable output.",
+      "workstream": "Export",
+      "acceptanceCriteria": [
+        "`src/server/export-pdf.ts` exports `exportDeckToPDF(renderUrl: string, format: FormatConfig): Promise<Buffer>`. Launches Puppeteer `--no-sandbox --disable-gpu`, viewport `format.pageWidth\u00d7pageHeight` at 2x scale.",
+        "Navigates to renderUrl, waits for `[data-ready]` with 10s timeout (throws `Error('Render timed out after 10s')` on failure).",
+        "`page.pdf()`: landscape from format, zero margins, `printBackground: true`, explicit width/height from format in pixels.",
+        "Returned Buffer starts with bytes `%PDF-1.`.",
+        "Browser created and destroyed per call."
+      ],
+      "priority": 12,
+      "dependsOn": ["US-005", "US-040"],
+      "passes": false,
+      "notes": "Workstream: Export. 2x scale critical for crisp text. Explicit width/height prevents A4 mismatch for 16:9. Test strategy: in the test, start a minimal HTTP server via `Bun.serve` that responds with a static HTML string `<html><body data-ready='true'><section class='slide' style='width:1920px;height:1080px;background:#000'><p>Test</p></section></body></html>`. Pass this server's URL to `exportDeckToPDF`. This tests Puppeteer settings without depending on the full rendering pipeline. Shut down the test server in `afterEach`."
+    },
+    {
+      "id": "US-042",
+      "title": "Build two-level DeckJSON validation pipeline",
+      "description": "Create the validation system checking document structure, then per-layout content, returning comprehensive error and warning reports.",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "`src/shared/validation/validate-deck.ts` exports `validateDeck(deck: unknown): ValidationResult` with `{ valid, errors: ValidationError[], warnings: ValidationWarning[] }`.",
+        "Level 1: parses against DeckJSONSchema. Level 2: per slide, validates content against layout schema from registry. Unknown `layoutId` \u2192 error `'Layout not found: {id}'`.",
+        "Character limit overflows \u2192 warnings (level `'warning'`), not errors. `valid` is true if only warnings exist.",
+        "Returns all errors/warnings for entire document (no early exit).",
+        "Tests: valid \u2192 clean. Missing `title` \u2192 structural error. Slide with registered layoutId but mismatched content \u2192 per-slide content error. Over-limit field \u2192 `valid: true` with warning."
+      ],
+      "priority": 4,
+      "dependsOn": ["US-009", "US-013"],
+      "passes": false,
+      "notes": "Workstream: Data. Synchronous, pure, no I/O. Used by generation pipeline, edit pipeline, and CLI test harness. Test setup: register a minimal test layout with a simple content schema (e.g., `{ title: z.string() }`) via `registerLayout()` in `beforeEach`. Call `clearRegistry()` in `afterEach`. This tests content validation without depending on real layout stories."
+    },
+    {
+      "id": "US-043",
+      "title": "Define DeckDiff types and Zod schemas",
+      "description": "Create the diff format for incremental editing \u2014 typed operations representing targeted changes to a DeckJSON document.",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "`src/shared/schemas/deck-diff.ts` exports `DeckDiffSchema`, `DeckDiff` ({operations: DiffOperation[]}), `DiffOperation` (discriminated union on type).",
+        "Operations: 'update' ({slideId, path, value}), 'insert' ({afterSlideId|null, slide}), 'delete' ({slideId}), 'reorder' ({slideIds}), 'updateSettings' ({path, value}).",
+        "Valid DeckDiff with one update parses. Unknown operation type fails.",
+        "Each operation type parses independently."
+      ],
+      "priority": 3,
+      "dependsOn": ["US-009"],
+      "passes": false,
+      "notes": "Workstream: Data. Uses z.discriminatedUnion('type', [...]). Path format defined in US-044."
+    },
+    {
+      "id": "US-044",
+      "title": "Build path traversal utility",
+      "description": "Create the utility for navigating and setting values at dot/bracket notation paths \u2014 the mechanism behind DeckDiff update operations.",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "`src/shared/diff/path-utils.ts` exports `getAtPath(obj, path): unknown` supporting dot notation (content.headline.text) and bracket notation (content.stats[2].value).",
+        "`setAtPath(obj, path, value): unknown` returns new object (immutable, input not mutated) with value set. Intermediate objects/arrays shallow-cloned.",
+        "Both throw `Error('Invalid path: segment \"{segment}\" not found at {partialPath}')` for non-existent keys or out-of-bounds indices. No intermediate creation. No negative indices.",
+        "Tests: `getAtPath({a:{b:[1,2,3]}}, 'a.b[1]')` \u2192 2. `setAtPath({a:{b:'old'}}, 'a.b', 'new')` \u2192 `{a:{b:'new'}}` and original unchanged. `getAtPath({a:1}, 'a.b.c')` throws.",
+        "Test: `setAtPath` with nested array `'content.cards[0].heading'` works correctly."
+      ],
+      "priority": 2,
+      "dependsOn": ["US-001", "US-004"],
+      "passes": false,
+      "notes": "Workstream: Data. Parse: split on '.', then handle [N] within segments. No lodash, no json-patch. Immutability of setAtPath is critical for rollback."
+    },
+    {
+      "id": "US-045",
+      "title": "Build diff application engine",
+      "description": "Create the engine applying a DeckDiff to a DeckJSON document, returning a new document with all operations applied.",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "`src/shared/diff/apply-diff.ts` exports `applyDiff(deck: DeckJSON, diff: DeckDiff): DeckJSON` returning new DeckJSON (input not mutated).",
+        "'update': setAtPath on slide matching slideId. Throws `Error('Slide not found: {id}')` if missing.",
+        "'insert': after afterSlideId (null = index 0). 'delete': removes matching slide. Both throw on missing ID.",
+        "'reorder': sets slide order matching slideIds array. Throws if ID sets don't match exactly.",
+        "Tests: update changes headline; insert adds slide; delete removes; reorder works; missing slideId throws."
+      ],
+      "priority": 4,
+      "dependsOn": ["US-009", "US-043", "US-044"],
+      "passes": false,
+      "notes": "Workstream: Data. Operations apply in array order. 'updateSettings' uses setAtPath on deck.settings. Shallow-clone slides array before modification."
+    },
+    {
+      "id": "US-046",
+      "title": "Build filesystem deck persistence",
+      "description": "Create the persistence layer storing DeckJSON as JSON files with atomic writes and a test-friendly in-memory implementation.",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "`DeckStore` interface: save(deck), get(deckId): DeckJSON|null, list(): DeckSummary[], delete(deckId). `DeckSummary`: {id, title, format, slideCount, updatedAt}.",
+        "`FsDeckStore`: files at `{DATA_DIR}/decks/{deckId}.json`. save writes atomically (temp file then rename). Directory created on first write.",
+        "`InMemoryDeckStore` for tests. DATA_DIR defaults to `./data`.",
+        "Tests (InMemoryDeckStore): save+get round-trips; list returns summaries; delete removes; get nonexistent \u2192 null."
+      ],
+      "priority": 3,
+      "dependsOn": ["US-009"],
+      "passes": false,
+      "notes": "Workstream: Data. Atomic writes: Bun.write to .tmp then fs.renameSync. DeckStore interface is the Phase 2 database swap boundary."
+    },
+    {
+      "id": "US-047",
+      "title": "Build conversation history store",
+      "description": "Create the per-deck conversation history store tracking user and agent messages for multi-turn editing context.",
+      "workstream": "Data",
+      "acceptanceCriteria": [
+        "`src/server/persistence/conversation-store.ts` exports `ConversationStore` interface with methods: `append(deckId, message)`, `getHistory(deckId): ConversationMessage[]`, `clear(deckId)`. `ConversationMessage` type has fields: `role` (`'user'`|`'assistant'`), `content` (string), `timestamp` (string).",
+        "`InMemoryConversationStore` implements the interface. Calling `append('deck-1', msg)` twice then `getHistory('deck-1')` returns both messages in insertion order.",
+        "Calling `clear('deck-1')` then `getHistory('deck-1')` returns an empty array. Calling `getHistory('unknown-id')` returns an empty array.",
+        "Tests: append 2 messages \u2192 getHistory returns both in order. clear \u2192 empty. Unknown deckId \u2192 empty array."
+      ],
+      "priority": 2,
+      "dependsOn": ["US-001", "US-004"],
+      "passes": false,
+      "notes": "Workstream: Data. In-memory only for Phase 1 (lost on restart). Filesystem/DB backing in Phase 2. Injected into edit pipeline so agent sees prior conversation."
+    },
+    {
+      "id": "US-048",
+      "title": "Configure Claude SDK and agent provider",
+      "description": "Set up the Anthropic SDK client and create the injectable AgentProvider interface with Claude and mock implementations.",
+      "workstream": "Integration",
+      "acceptanceCriteria": [
+        "`AgentProvider` interface: `generateDeck(systemPrompt, userMessage): Promise<string>`, `editDeck(systemPrompt, context, userMessage): Promise<string>`. Returns raw text.",
+        "`ClaudeAgentProvider` uses `@anthropic-ai/sdk`, model `claude-sonnet-4-20250514`. generateDeck: max_tokens 8192. editDeck: max_tokens 4096. Parses `response.content[0].text`.",
+        "`MockAgentProvider` with `setGenerateResponse(string)` and `setEditResponse(string)` for configurable returns.",
+        "Constructor accepts `apiKey: string` directly (not from env). Injected into routes, never singleton.",
+        "Test: MockAgentProvider returns configured response."
+      ],
+      "priority": 2,
+      "dependsOn": ["US-001", "US-004"],
+      "passes": false,
+      "notes": "Workstream: Integration. Response parsing (content[0].text) must match actual Anthropic response shape. Add graceful 429 retry: wait 5s, retry once."
+    },
+    {
+      "id": "US-049",
+      "title": "Build JSON extraction utility",
+      "description": "Create a robust function extracting JSON from LLM response strings, handling code fences, trailing commas, and missing fences.",
+      "workstream": "Integration",
+      "acceptanceCriteria": [
+        "`src/server/agent/extract-json.ts` exports `extractJSON(response: string): object` that extracts JSON from LLM responses. Calling with `'Here is the deck:\\n\\`\\`\\`json\\n{\"a\":1}\\n\\`\\`\\`'` returns `{a:1}`.",
+        "Falls back when no json fence: calling with `'\\`\\`\\`\\n{\"a\":1}\\n\\`\\`\\`'` (plain fence, no json marker) returns `{a:1}`.",
+        "Tests: fenced ````json\\n{\"a\":1}\\n``` ` \u2192 {a:1}. Unfenced `{\"a\":1}` \u2192 {a:1}. `'no json'` \u2192 throws.",
+        "Trailing comma: ````json\\n{\"a\":1,}\\n``` ` \u2192 {a:1}.",
+        "Two code blocks: extracts from first only."
+      ],
+      "priority": 2,
+      "dependsOn": ["US-001", "US-004"],
+      "passes": false,
+      "notes": "Workstream: Integration. Trailing comma strip handles the most common LLM artifact. Don't attempt full JSON repair \u2014 retry mechanism handles fundamental failures."
+    },
+    {
+      "id": "US-050",
+      "title": "Build agent system prompt builder",
+      "description": "Create the function assembling the system prompt \u2014 role framing, compact layout registry, brand context, and content generation rules.",
+      "workstream": "Integration",
+      "acceptanceCriteria": [
+        "`src/server/agent/system-prompt.ts` exports `buildSystemPrompt(brandProfile: BrandProfileV1, layoutIds: string[]): string`.",
+        "Four sections: role framing, layout registry (one line per layout from LAYOUT_REGISTRY metadata), brand tone + language, content rules (headlines as conclusions not topics, character limits, accent highlight on one key phrase, default to dark variant).",
+        "Total under 8000 characters: `buildSystemPrompt(axiiomProfile, getLayoutIds()).length < 8000`.",
+        "Output contains all 15 layout IDs, the brand tone value, and phrasing about headlines as conclusions.",
+        "Test: contains 'title-slide', 'professional-friendly', and 'conclusions' (or synonym)."
+      ],
+      "priority": 10,
+      "dependsOn": ["US-011", "US-038"],
+      "passes": false,
+      "notes": "Workstream: Integration. 8000 chars \u2248 2000 tokens. Keep minimal \u2014 schema constrains, prompt guides. One-line-per-layout format from migration guide. No full TypeScript interfaces."
+    },
+    {
+      "id": "US-051",
+      "title": "Build edit context builder",
+      "description": "Create the functions preparing deck context for edit requests \u2014 table of contents, full slide content, and conversation history formatting.",
+      "workstream": "Integration",
+      "acceptanceCriteria": [
+        "`src/server/agent/context-builder.ts` exports `buildTableOfContents(deck: DeckJSON): string` returning one line per slide formatted as `'{index}. [{slideId}] {layoutId}: \"{headline first 60 chars}\"'`. Calling with a 10-slide deck returns a string with exactly 10 newline-separated lines.",
+        "`buildFullSlideContext(deck): string` \u2014 compact JSON of every slide's full content, prefixed by slide ID.",
+        "`buildConversationContext(history: ConversationMessage[]): string` \u2014 last 10 messages formatted as `'User: ...\\nAssistant: ...\\n'`.",
+        "Test: 10-slide ToC has 10 lines each with layoutId. 15-message history returns only last 10."
+      ],
+      "priority": 3,
+      "dependsOn": ["US-009", "US-047"],
+      "passes": false,
+      "notes": "Workstream: Integration. Full slide context (all slides) sent for every edit \u2014 no smart selection. 15 slides \u00d7 ~300 tokens \u2248 4500 tokens, well within Sonnet's window. This eliminates ambiguity about which slide the user means."
+    },
+    {
+      "id": "US-052",
+      "title": "Build deck generation pipeline",
+      "description": "Create the end-to-end pipeline: brief \u2192 agent \u2192 JSON extraction \u2192 validation \u2192 UUIDs \u2192 DeckJSON, with one self-correction retry.",
+      "workstream": "Integration",
+      "acceptanceCriteria": [
+        "`src/server/pipelines/generate-deck.ts` exports `generateDeck(brief, brandProfile, agentProvider): Promise<GenerationResult>` where `GenerationResult` has fields `deck` (DeckJSON), `validationWarnings` (ValidationWarning[]), `agentMessage` (string).",
+        "Calling with a MockAgentProvider that returns valid fenced DeckJSON produces a `GenerationResult` where `deck.slides.length > 0` and every slide has a `crypto.randomUUID()`-format `id`.",
+        "Validation errors \u2192 retry with message `'Validation errors: {errors}. Fix and return valid DeckJSON.'`. One retry only.",
+        "Second failure \u2192 throws `Error('Deck generation failed after retry: {errors}')`.",
+        "Tests (MockAgentProvider): valid \u2192 returns deck. Invalid then valid \u2192 retry succeeds. Both invalid \u2192 throws."
+      ],
+      "priority": 11,
+      "dependsOn": ["US-042", "US-048", "US-049", "US-050"],
+      "passes": false,
+      "notes": "Workstream: Integration. agentMessage = text before first ``` fence. If no preamble, empty string. UUID via crypto.randomUUID() (Bun native). Sets brandProfileId to profile.id."
+    },
+    {
+      "id": "US-053",
+      "title": "Build deck editing pipeline",
+      "description": "Create the pipeline for conversational edits: message + context + history \u2192 agent \u2192 DeckDiff \u2192 apply \u2192 validate, with restructure detection.",
+      "workstream": "Integration",
+      "acceptanceCriteria": [
+        "`src/server/pipelines/edit-deck.ts` exports `editDeck(request, currentDeck, brandProfile, agentProvider, history): Promise<EditResult>` where `EditResult` has fields `deck` (DeckJSON), `diff` (DeckDiff), `validationWarnings`, `agentMessage`.",
+        "Calling with MockAgentProvider returning a valid `update` DeckDiff applies the change: the returned `deck` differs from `currentDeck` at the updated field, and `diff.operations` has length 1.",
+        "Diff application error \u2192 one retry with error details.",
+        "Restructure patterns (`/start over|completely reorgani[sz]e|rebuild from scratch/i`) \u2192 delegates to generateDeck.",
+        "Tests (MockAgentProvider): update diff applied; insert works; 'start over' routes to generation."
+      ],
+      "priority": 12,
+      "dependsOn": ["US-045", "US-051", "US-052"],
+      "passes": false,
+      "notes": "Workstream: Integration. Restructure regex is intentionally simple \u2014 false positives are safe (just slower). New slides in inserts get fresh UUIDs."
+    },
+    {
+      "id": "US-054",
+      "title": "Build POST /api/decks/generate endpoint",
+      "description": "Create the API endpoint for generating new decks from a brief, persisting the result and appending to conversation history.",
+      "workstream": "API",
+      "acceptanceCriteria": [
+        "`POST /api/decks/generate` accepts `{ brief: string }`. Returns 400 `{ error: 'Brief is required' }` if missing/empty.",
+        "Success: generateDeck \u2192 DeckStore.save \u2192 ConversationStore.append (user + assistant) \u2192 returns 200 `{ deck, agentMessage, warnings }`.",
+        "Failure: returns 500 `{ error: string }`.",
+        "Uses Axiiom profile for all requests (Phase 1).",
+        "Test (MockAgentProvider): valid brief \u2192 200 with deck. Empty brief \u2192 400."
+      ],
+      "priority": 12,
+      "dependsOn": ["US-046", "US-047", "US-052", "US-003"],
+      "passes": false,
+      "notes": "Workstream: API. DeckStore and ConversationStore injected into Hono app. brandProfileId parameter in contract for Phase 2 compatibility."
+    },
+    {
+      "id": "US-055",
+      "title": "Build deck listing and detail endpoints",
+      "description": "Create the read-only API endpoints for listing all decks and retrieving a specific deck.",
+      "workstream": "API",
+      "acceptanceCriteria": [
+        "`GET /api/decks` returns 200 `{ decks: DeckSummary[] }`.",
+        "`GET /api/decks/:deckId` returns 200 `{ deck: DeckJSON }` or 404 `{ error: 'Deck not found' }`.",
+        "Test: generate a deck, list includes it, get by ID returns it."
+      ],
+      "priority": 4,
+      "dependsOn": ["US-046", "US-003"],
+      "passes": false,
+      "notes": "Workstream: API. DeckSummary: id, title, format, slideCount, updatedAt. Integration test: construct the Hono app with MockAgentProvider and InMemoryDeckStore. Call POST /api/decks/generate first to populate a deck, then test GET endpoints against it."
+    },
+    {
+      "id": "US-056",
+      "title": "Build deck edit endpoint",
+      "description": "Create the API endpoint for conversational editing \u2014 receiving a message, running the edit pipeline with history, returning the updated deck.",
+      "workstream": "API",
+      "acceptanceCriteria": [
+        "`POST /api/decks/:deckId/edit` accepts `{ message: string }`. Returns 404 if deck not found. 400 if message empty.",
+        "Loads deck + history \u2192 editDeck \u2192 saves updated deck \u2192 appends messages to conversation \u2192 returns 200 `{ deck, diff, agentMessage, warnings }`.",
+        "Failure: 500 `{ error }`.",
+        "Test: generate \u2192 edit \u2192 GET verifies edit persisted."
+      ],
+      "priority": 13,
+      "dependsOn": ["US-046", "US-047", "US-053", "US-003"],
+      "passes": false,
+      "notes": "Workstream: API. Always loads latest deck state before editing. Conversation history enables multi-turn editing. Integration test: construct the Hono app with MockAgentProvider (configured to return a valid DeckDiff) and InMemoryDeckStore. Generate a deck first, then test the edit endpoint."
+    },
+    {
+      "id": "US-057",
+      "title": "Build export and delete endpoints",
+      "description": "Create the PDF export and deck deletion API endpoints.",
+      "workstream": "API",
+      "acceptanceCriteria": [
+        "`GET /api/decks/:deckId/export` returns PDF buffer (`Content-Type: application/pdf`, `Content-Disposition: attachment`). 404 if not found. 500 on failure.",
+        "`DELETE /api/decks/:deckId` calls DeckStore.delete + ConversationStore.clear. Returns 204 or 404.",
+        "Test: generate \u2192 export (body starts %PDF) \u2192 delete \u2192 GET returns 404."
+      ],
+      "priority": 13,
+      "dependsOn": ["US-041", "US-046", "US-047", "US-003"],
+      "passes": false,
+      "notes": "Workstream: API. Export is synchronous Phase 1. Async export is Phase 2. Integration test: construct the Hono app with MockAgentProvider, InMemoryDeckStore, and InMemoryConversationStore. The export test needs Puppeteer \u2014 in CI, skip the export assertion and test only the delete flow. Mark Puppeteer-dependent tests with a describe.skipIf guard on PUPPETEER_EXECUTABLE_PATH."
+    },
+    {
+      "id": "US-058",
+      "title": "Build useDeck React state hook",
+      "description": "Create the shared state management hook consumed by both the chat panel and preview panel \u2014 holding the current deck and API interaction functions.",
+      "workstream": "UI",
+      "acceptanceCriteria": [
+        "`src/hooks/useDeck.tsx` exports `DeckProvider` and `useDeck()` returning `{ deck, deckId, isLoading, error, generateFromBrief, editDeck, clearError }`.",
+        "`generateFromBrief(brief): Promise<string>` \u2192 POST generate, sets deck+deckId, returns agentMessage. Sets error on failure.",
+        "`editDeck(message): Promise<void>` \u2192 POST edit, updates deck. Sets error on failure.",
+        "`isLoading` true during API calls. `error` cleared on next success or clearError().",
+        "Test: generateFromBrief with mocked fetch updates deck state."
+      ],
+      "priority": 14,
+      "dependsOn": ["US-054", "US-056"],
+      "passes": false,
+      "notes": "Workstream: UI. React Context + useReducer internally. Both chat panel and preview panel consume this. Fetch uses relative URLs (/api/...) via Vite proxy."
+    },
+    {
+      "id": "US-059",
+      "title": "Build error, loading, and empty state components",
+      "description": "Create shared UI primitives for error display, loading indicators, and empty states.",
+      "workstream": "UI",
+      "acceptanceCriteria": [
+        "`ErrorBanner`: accepts message, onDismiss, onRetry?. Red/amber banner with dismiss \u00d7 and optional retry button.",
+        "`LoadingSpinner`: accepts message?. Centered CSS spinner animation with optional text.",
+        "`EmptyState`: accepts icon? (lucide name), message, actionLabel?, onAction?. Centered icon + message + optional button.",
+        "Test: ErrorBanner renders message; clicking dismiss calls onDismiss."
+      ],
+      "priority": 3,
+      "dependsOn": ["US-002", "US-004"],
+      "passes": false,
+      "notes": "Workstream: UI. Simple Tailwind-styled components. No brand CSS custom properties \u2014 use standard Tailwind colors for framework-level UI."
+    },
+    {
+      "id": "US-060",
+      "title": "Build chat interface panel",
+      "description": "Create the conversational chat panel for briefs and edit requests with message history, loading states, and PDF export.",
+      "workstream": "UI",
+      "acceptanceCriteria": [
+        "Renders a text `<input>` with `placeholder` containing `'Describe the deck you want to create'` when `useDeck().deck` is null. After generation, placeholder contains `'Describe changes'`.",
+        "Clicking send with non-empty input when no deck exists calls `useDeck().generateFromBrief` with the input value. When a deck exists, calls `useDeck().editDeck`.",
+        "After `generateFromBrief` resolves, the chat panel renders an element containing the `agentMessage` text from the hook. User messages and agent messages render as distinct list items.",
+        "Export button renders with `disabled` attribute when `useDeck().deck` is null or `useDeck().isLoading` is true. When enabled and clicked, it fetches `/api/decks/:deckId/export`.",
+        "When `useDeck().error` is non-null, an `ErrorBanner` renders with the error message and a dismiss button that calls `useDeck().clearError`."
+      ],
+      "priority": 15,
+      "dependsOn": ["US-058", "US-059"],
+      "passes": false,
+      "notes": "Workstream: UI. Functional test harness, not polished product. Test by wrapping in a mock DeckProvider that exposes controllable state. PDF download: fetch \u2192 Blob \u2192 URL.createObjectURL + temporary anchor click. Session-only message history in component state \u2014 server has canonical conversation via ConversationStore."
+    },
+    {
+      "id": "US-061",
+      "title": "Build slide preview panel",
+      "description": "Create the preview panel rendering the current DeckJSON as scaled slides with keyboard navigation.",
+      "workstream": "UI",
+      "acceptanceCriteria": [
+        "Renders the current deck from `useDeck()` using `DeckRenderer` with `printMode=false`. Test: when `useDeck().deck` is a 3-slide deck, the DOM contains 3 `<section>` elements with class `'slide'`.",
+        "Slides at 1920\u00d71080 scaled via `transform: scale(panelWidth/1920)` with `transform-origin: top left`.",
+        "Left/right arrow keys + prev/next buttons. 'Slide N of M' counter.",
+        "When `useDeck().deck` is null, renders `EmptyState` component containing the text `'Describe a deck to get started'`.",
+        "Deck updates: re-renders, preserves slide index if in bounds."
+      ],
+      "priority": 15,
+      "dependsOn": ["US-039", "US-058", "US-059"],
+      "passes": false,
+      "notes": "Workstream: UI. Scale transform is pixel-perfect. Only current slide needs full render \u2014 thumbnails are nice-to-have. Speaker notes collapsible below preview is optional Phase 1."
+    },
+    {
+      "id": "US-062",
+      "title": "Build dashboard and routing",
+      "description": "Create the dashboard listing decks and React Router configuration for navigation between dashboard and editor.",
+      "workstream": "UI",
+      "acceptanceCriteria": [
+        "Dashboard fetches GET /api/decks, renders cards: title, format, slide count, relative time.",
+        "Click deck \u2192 /deck/:deckId. 'New Deck' \u2192 /deck/new. EmptyState when no decks. LoadingSpinner while fetching.",
+        "React Router: / \u2192 Dashboard, /deck/new \u2192 DeckEditor (no deck), /deck/:deckId \u2192 DeckEditor (loads deck).",
+        "DeckEditor renders ChatPanel (40%) + PreviewPanel (60%) side-by-side in DeckProvider.",
+        "Test: /deck/new renders chat input with 'Describe the deck you want to create...' placeholder."
+      ],
+      "priority": 16,
+      "dependsOn": ["US-055", "US-060", "US-061"],
+      "passes": false,
+      "notes": "Workstream: UI. createBrowserRouter from react-router-dom. DeckEditor on /:deckId fetches deck on mount. Relative time: <1hr \u2192 'X min ago', <24hr \u2192 'X hours ago', else date."
+    },
+    {
+      "id": "US-063",
+      "title": "Build Phase 0 test harness CLI",
+      "description": "Create the CLI script validating a DeckJSON file and exporting a PDF \u2014 the end-to-end Phase 0 validation gate with no AI.",
+      "workstream": "Infrastructure",
+      "acceptanceCriteria": [
+        "`scripts/generate-pdf.ts` is runnable via `bun run scripts/generate-pdf.ts <path>`. Test: calling with a valid fixture path exits with code 0 and creates a file in `output/`.",
+        "When the input JSON fails validation with errors, the script writes error details to stderr and exits with code 1.",
+        "Timing output is written to stdout matching the pattern `'Validate: {N}ms | Export: {N}ms | Total: {N}ms'` (parseable by regex `Validate: \\d+ms`).",
+        "`fixtures/sample-deck.json`: 5 slides (title-slide, single-column, stats-row, single-column, call-to-action) with realistic B2B content.",
+        "Running against fixture produces a PDF buffer starting with `%PDF-1.`. Parsing with `pdf-parse` yields `numpages === 5`."
+      ],
+      "priority": 13,
+      "dependsOn": ["US-041", "US-042"],
+      "passes": false,
+      "notes": "Workstream: Infrastructure. Phase 0 gate. Install `pdf-parse` as a dev dependency for the page count assertion. Use Acme Corp investor update content from migration guide. Script starts Vite dev server if needed for render URL, or uses renderDeckToHTML directly with a minimal Bun.serve to host the HTML for Puppeteer."
+    }
+  ]
+}

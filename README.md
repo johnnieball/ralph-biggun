@@ -20,7 +20,7 @@ Then review and run the loop:
 
 ```bash
 cd ~/projects/my-app
-./engine/kickoff.sh my-plan
+# In Claude Code: /prd-review my-plan
 ./engine/ralph.sh 20 my-plan
 ```
 
@@ -53,8 +53,8 @@ For complex projects, consider using [OpenSpec](https://github.com/Fission-AI/Op
 ## What's inside
 
 - `engine/ralph.sh` — The loop. Fresh context per iteration, circuit breaker, rate limiting, dual exit detection.
-- `engine/kickoff.sh` — PRD review gate. Validates stories before AFK execution.
 - `engine/prompt.md` — The iteration prompt. 10-phase TDD workflow with verification gates.
+- `.claude/skills/prd-review/` — PRD review skill. Auto-fixes mechanical issues, flags human decisions.
 - `engine/snapshot.sh` — Codebase snapshot generator (file tree, exports, import graph, test counts).
 - `skills/tdd/` — TDD methodology (Matt Pocock + obra/superpowers). Non-negotiable.
 - `.claude/hooks/` — Git guardrails blocking dangerous commands.

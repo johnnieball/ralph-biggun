@@ -128,7 +128,6 @@ assert_false "setup.sh does not exist" test -f setup.sh
 
 # 9. Assert Ralph machinery present
 assert_true "engine/ralph.sh exists" test -f engine/ralph.sh
-assert_true "engine/kickoff.sh exists" test -f engine/kickoff.sh
 assert_true "engine/prompt.md exists" test -f engine/prompt.md
 assert_true "engine/snapshot.sh exists" test -f engine/snapshot.sh
 assert_true "specs/architecture.md exists" test -f specs/architecture.md

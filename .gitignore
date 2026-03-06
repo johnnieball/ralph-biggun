@@ -37,7 +37,15 @@ logs/
 # Ralph internals
 .ralph-call-count
 .ralph-last-error
-.ralph-kickoff-complete
 
 # Eval runs
 evals/runs/
+
+# Puppeteer / PDF output
+output/
+
+# Bun
+bun.lockb
+
+# Docker
+.dockerignore
