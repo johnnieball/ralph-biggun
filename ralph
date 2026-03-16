@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# ralph — CLI entry point for Ralph autonomous TDD loop
+# Usage: ralph <init|run> [options]
+#
+# Commands:
+#   init [--stack <preset>] [target-dir]  — Initialise Ralph in a project
+#   run [iterations] [plan-name]          — Start the autonomous loop
+
+RALPH_HOME="$(cd "$(dirname "$0")" && pwd)"
+
+case "${1:-}" in
+  init)
+    shift
+    exec "$RALPH_HOME/commands/init.sh" "$@"
+    ;;
+  run)
+    shift
+    exec "$RALPH_HOME/commands/run.sh" "$@"
+    ;;
+  *)
+    echo "Usage: ralph <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  init [--stack <preset>] [dir]   Initialise Ralph in a project"
+    echo "  run [iterations] [plan-name]    Start the autonomous loop"
+    echo ""
+    echo "Available stack presets:"
+    for f in "$RALPH_HOME"/presets/*.sh; do
+      echo "  - $(basename "$f" .sh)"
+    done
+    ;;
+esac

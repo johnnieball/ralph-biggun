@@ -87,11 +87,22 @@ case "$SCENARIO" in
     ;;
 
   same-error)
-    result_text="$(printf '%s\n%s' \
-      'Attempting to fix module resolution' \
-      "Error: cannot resolve module 'foo'")"
+    result_text="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
+      '---RALPH_STATUS---' \
+      'STATUS: BLOCKED' \
+      'TASKS_COMPLETED_THIS_LOOP: 0' \
+      'FILES_MODIFIED: 0' \
+      'TESTS_STATUS: FAILING' \
+      'WORK_TYPE: DEBUGGING' \
+      'EXIT_SIGNAL: false' \
+      "RECOMMENDATION: Stuck on module resolution error" \
+      '---END_RALPH_STATUS---')"
     emit_assistant "Encountering error."
     emit_result "$result_text"
+    # Create a RALPH commit so no-progress circuit breaker doesn't fire first
+    touch .mock-error-marker
+    git add .mock-error-marker 2>/dev/null || true
+    git commit -m "RALPH: mock error iteration" --allow-empty 2>/dev/null || true
     ;;
 
   abort)
