@@ -28,10 +28,10 @@
 
 ## Scoring Guide
 
-| Metric | Excellent | Acceptable | Poor |
-|--------|-----------|------------|------|
-| Stories completed | 5/5 | 4/5 | < 4/5 |
-| Iterations | 5-7 | 8-10 | > 10 |
-| Exit condition | Clean exit | Max iterations | Circuit breaker |
-| TDD compliance | RED before GREEN every time | Mostly RED-first | GREEN before RED |
-| Vertical slicing | One story per iteration | Occasional batching | Horizontal slicing |
+| Metric            | Excellent                   | Acceptable          | Poor               |
+| ----------------- | --------------------------- | ------------------- | ------------------ |
+| Stories completed | 5/5                         | 4/5                 | < 4/5              |
+| Iterations        | 5-7                         | 8-10                | > 10               |
+| Exit condition    | Clean exit                  | Max iterations      | Circuit breaker    |
+| TDD compliance    | RED before GREEN every time | Mostly RED-first    | GREEN before RED   |
+| Vertical slicing  | One story per iteration     | Occasional batching | Horizontal slicing |

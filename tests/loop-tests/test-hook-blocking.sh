@@ -7,6 +7,8 @@ HOOK_SCRIPT="$REPO_ROOT/.claude/hooks/block-dangerous-git.sh"
 PASS=0
 FAIL=0
 
+source "$SCRIPT_DIR/../lib/assert.sh"
+
 # The hook reads JSON from stdin with .tool_input.command
 run_hook() {
   local command="$1"
@@ -50,6 +52,8 @@ assert_blocked "git push origin main" "git push origin main"
 assert_blocked "git reset --hard HEAD" "git reset --hard HEAD"
 assert_blocked "git clean -fd" "git clean -fd"
 assert_blocked "git branch -D main" "git branch -D main"
+assert_blocked "git push --force-with-lease" "git push --force-with-lease"
+assert_blocked "git clean -f" "git clean -f"
 
 echo ""
 echo "Subtest: Hook allowing safe git commands"
@@ -57,10 +61,4 @@ echo "Subtest: Hook allowing safe git commands"
 assert_allowed "git add ." "git add ."
 assert_allowed "git commit -m test" "git commit -m \"test\""
 
-echo ""
-echo "Hook blocking tests: $PASS passed, $FAIL failed"
-
-if [ "$FAIL" -gt 0 ]; then
-  exit 1
-fi
-exit 0
+print_summary "Hook blocking tests"

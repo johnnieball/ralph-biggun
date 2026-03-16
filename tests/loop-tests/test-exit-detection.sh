@@ -5,39 +5,22 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PASS=0
 FAIL=0
+TMPDIR_PATHS=()
+
+source "$SCRIPT_DIR/../lib/assert.sh"
 
 cleanup() {
-  if [ -n "$TMPDIR_PATH" ] && [ -d "$TMPDIR_PATH" ]; then
-    rm -rf "$TMPDIR_PATH"
-  fi
+  for d in "${TMPDIR_PATHS[@]}"; do
+    rm -rf "$d" 2>/dev/null || true
+  done
 }
 trap cleanup EXIT
 
-assert_contains() {
-  local label="$1" haystack="$2" needle="$3"
-  if echo "$haystack" | grep -q "$needle"; then
-    echo "  PASS: $label"
-    PASS=$(( PASS + 1 ))
-  else
-    echo "  FAIL: $label (expected to find '$needle')"
-    FAIL=$(( FAIL + 1 ))
-  fi
-}
-
-assert_exit_code() {
-  local label="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $label"
-    PASS=$(( PASS + 1 ))
-  else
-    echo "  FAIL: $label (expected exit $expected, got $actual)"
-    FAIL=$(( FAIL + 1 ))
-  fi
-}
-
 setup_temp_repo() {
-  TMPDIR_PATH=$(mktemp -d)
-  cd "$TMPDIR_PATH"
+  local tmpdir
+  tmpdir=$(mktemp -d)
+  TMPDIR_PATHS+=("$tmpdir")
+  cd "$tmpdir"
 
   git init -q
   git config user.email "test@test.com"
@@ -63,10 +46,10 @@ CB_SAME_ERROR_THRESHOLD=5
 ALLOWED_TOOLS=""
 EOF
 
-  mkdir -p "$TMPDIR_PATH/bin"
-  cp "$SCRIPT_DIR/mock-claude.sh" "$TMPDIR_PATH/bin/claude"
-  chmod +x "$TMPDIR_PATH/bin/claude"
-  export PATH="$TMPDIR_PATH/bin:$PATH"
+  mkdir -p "$tmpdir/bin"
+  cp "$SCRIPT_DIR/mock-claude.sh" "$tmpdir/bin/claude"
+  chmod +x "$tmpdir/bin/claude"
+  export PATH="$tmpdir/bin:$PATH"
   export RALPH_SKIP_KICKOFF=1
 }
 
@@ -82,13 +65,12 @@ exit_code=$?
 set -e
 
 assert_exit_code "exits with code 0" "0" "$exit_code"
-assert_contains "detects Ralph complete" "$output" "Ralph complete"
+assert_output_contains "detects Ralph complete" "$output" "Ralph complete"
 
 # --- Subtest 2: EXIT_SIGNAL true ---
 echo ""
 echo "Subtest: EXIT_SIGNAL true"
 
-cleanup
 setup_temp_repo
 export MOCK_SCENARIO=exit-signal
 
@@ -98,13 +80,12 @@ exit_code=$?
 set -e
 
 assert_exit_code "exits with code 0" "0" "$exit_code"
-assert_contains "detects EXIT_SIGNAL" "$output" "Ralph received EXIT_SIGNAL"
+assert_output_contains "detects EXIT_SIGNAL" "$output" "Ralph received EXIT_SIGNAL"
 
 # --- Subtest 3: Promise ABORT ---
 echo ""
 echo "Subtest: Promise ABORT"
 
-cleanup
 setup_temp_repo
 export MOCK_SCENARIO=abort
 
@@ -114,12 +95,6 @@ exit_code=$?
 set -e
 
 assert_exit_code "exits with code 1" "1" "$exit_code"
-assert_contains "detects abort" "$output" "Ralph aborted"
+assert_output_contains "detects abort" "$output" "Ralph aborted"
 
-echo ""
-echo "Exit detection tests: $PASS passed, $FAIL failed"
-
-if [ "$FAIL" -gt 0 ]; then
-  exit 1
-fi
-exit 0
+print_summary "Exit detection tests"

@@ -118,8 +118,8 @@ analyse_standard() {
   fi
 }
 
-analyse_beast() {
-  echo "=== Beast Run Analysis ==="
+analyse_multi_round() {
+  echo "=== Multi-Round Run Analysis ==="
   echo "Directory: $RUN_DIR"
   echo ""
 
@@ -279,11 +279,12 @@ analyse_beast() {
     fi
   done
 
-  # Flag: more than 40 total iterations for 20 stories
+  # Flag: more than 2x story count total iterations
   if [ -f "$final_prd" ]; then
     story_count=$(jq '.userStories | length' "$final_prd" 2>/dev/null || echo "0")
-    if [ "$story_count" -eq 20 ] && [ "$total_iterations" -gt 40 ]; then
-      echo "WARNING: More than 40 total iterations for 20 stories ($total_iterations iterations)"
+    iteration_threshold=$(( story_count * 2 ))
+    if [ "$iteration_threshold" -gt 0 ] && [ "$total_iterations" -gt "$iteration_threshold" ]; then
+      echo "WARNING: More than $iteration_threshold total iterations for $story_count stories ($total_iterations iterations)"
       flags=$(( flags + 1 ))
     fi
   fi
@@ -302,9 +303,9 @@ analyse_beast() {
   fi
 }
 
-# Detect beast run vs standard prompt eval run and dispatch
+# Detect multi-round vs standard run and dispatch
 if [ -f "$RUN_DIR/round-1-ralph-output.log" ]; then
-  analyse_beast
+  analyse_multi_round
 else
   analyse_standard
 fi

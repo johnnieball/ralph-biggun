@@ -96,9 +96,9 @@ Beyond standard TDD/loop behaviour checks:
 7. **Config precedence at US-019** - correct layering of defaults -> file -> CLI flags?
 8. **Generics at US-020** - no casts, backward compatible, flowing through the whole system?
 
-## The wrapper script
+## The multi-round wrapper
 
-The beast run uses a wrapper (`evals/beast-wrapper.sh`) that:
+The beast run uses a multi-round wrapper (`evals/multi-round.sh`, invoked via `run-eval.sh --rounds N`) that:
 
 1. Runs ralph.sh with configured iterations per round
 2. When Ralph exits, captures logs

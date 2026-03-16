@@ -1,207 +1,234 @@
 #!/bin/bash
 set -e
 
+# Eval runner — point at any PRD JSON, run the eval
+# Usage: ./evals/run-eval.sh <prd.json> [--rounds N] [--iterations M]
+#
+# Examples:
+#   ./evals/run-eval.sh evals/prds/calculator/prd.json
+#   ./evals/run-eval.sh evals/prds/beast/prd.json --rounds 5
+#   ./evals/run-eval.sh ~/my-project/prd.json --iterations 25 --rounds 3
+
 # Ensure bun is on PATH (installed to ~/.bun by default)
 export PATH="$HOME/.bun/bin:$PATH"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$REPO_ROOT/lib/utils.sh"
 
-usage() {
-  echo "Usage: $0 [loop|smoke|prompt|beast|all] [toy-project] [max-iterations]"
+# --- Argument parsing ---
+
+PRD_PATH=""
+rounds=1
+iterations=20
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --rounds)
+      rounds="${2:?ERROR: --rounds requires a number}"
+      shift 2
+      ;;
+    --iterations)
+      iterations="${2:?ERROR: --iterations requires a number}"
+      shift 2
+      ;;
+    -*)
+      echo "ERROR: Unknown flag '$1'"
+      echo "Usage: $0 <prd.json> [--rounds N] [--iterations M]"
+      exit 1
+      ;;
+    *)
+      if [ -z "$PRD_PATH" ]; then
+        PRD_PATH="$1"
+      else
+        echo "ERROR: Unexpected argument '$1'"
+        echo "Usage: $0 <prd.json> [--rounds N] [--iterations M]"
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$PRD_PATH" ]; then
+  echo "Usage: $0 <prd.json> [--rounds N] [--iterations M]"
   echo ""
-  echo "  prompt              Run prompt eval (defaults to calculator, 15 iterations)"
-  echo "  prompt <project>    Run prompt eval against a toy project"
-  echo "  prompt <project> N  Run prompt eval with N max iterations"
-  echo "  beast               Run beast mode overnight eval (5 rounds, 30 iterations)"
-  echo "  beast <rounds> <N>  Run beast mode with custom rounds and iterations"
+  echo "  <prd.json>       Path to PRD file (required)"
+  echo "  --rounds N       Number of rounds (default: 1)"
+  echo "  --iterations M   Max iterations per round (default: 20)"
   echo ""
-  echo "Available toy projects: $(ls "$SCRIPT_DIR/toy-projects/" 2>/dev/null | tr '\n' ' ')"
+  echo "Examples:"
+  echo "  $0 evals/prds/calculator/prd.json"
+  echo "  $0 evals/prds/beast/prd.json --rounds 5 --iterations 30"
   exit 1
-}
+fi
 
-run_beast() {
-  echo ""
-  echo "=== Beast Mode Eval ==="
-  bash "$SCRIPT_DIR/beast-wrapper.sh" "${1:-}" "${2:-}"
-}
+# Resolve to absolute path
+prd_dir_resolved="$(cd "$(dirname "$PRD_PATH")" 2>/dev/null && pwd || true)"
+if [ -z "$prd_dir_resolved" ] || [ ! -f "$prd_dir_resolved/$(basename "$PRD_PATH")" ]; then
+  echo "ERROR: PRD file not found: $PRD_PATH"
+  exit 1
+fi
+PRD_PATH="$prd_dir_resolved/$(basename "$PRD_PATH")"
 
-run_loop() {
-  echo "=== Loop Tests ==="
-  bash "$SCRIPT_DIR/loop-tests/run-loop-tests.sh"
-}
+# --- Derive names from PRD ---
 
-run_smoke() {
-  echo ""
-  echo "=== Smoke Test ==="
-  bash "$SCRIPT_DIR/smoke-test.sh"
-}
+project_name=$(jq -r '.project' "$PRD_PATH" 2>/dev/null || echo "eval")
+plan_name=$(echo "$project_name" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
+prd_dir="$(dirname "$PRD_PATH")"
 
-run_prompt() {
-  local toy_project="${1:-calculator}"
-  local toy_dir="$SCRIPT_DIR/toy-projects/$toy_project"
+echo ""
+echo "=== Ralph Eval ==="
+echo "PRD: $PRD_PATH"
+echo "Project: $project_name (plan: $plan_name)"
+echo "Iterations: $iterations | Rounds: $rounds"
 
-  # Validate toy project exists
-  if [ ! -d "$toy_dir" ]; then
-    echo "ERROR: Toy project '$toy_project' not found at $toy_dir"
-    echo "Available projects: $(ls "$SCRIPT_DIR/toy-projects/" 2>/dev/null | tr '\n' ' ')"
+# --- Multi-round: delegate to multi-round.sh ---
+
+if [ "$rounds" -gt 1 ]; then
+  # Nested Claude Code detection — multi-round cannot run inside Claude Code
+  if [ -n "$CLAUDECODE" ]; then
+    echo "ERROR: Multi-round evals cannot run inside Claude Code — nested sessions not supported. Run from a plain terminal."
     exit 1
   fi
 
-  if [ ! -f "$toy_dir/prd.json" ]; then
-    echo "ERROR: No prd.json found in $toy_dir"
-    exit 1
-  fi
-
-  # Determine iteration limit: explicit arg > project default > 15
-  local max_iterations="${2:-}"
-  if [ -z "$max_iterations" ]; then
-    if [ "$toy_project" = "calculator" ]; then
-      max_iterations=15
-    else
-      max_iterations=20
-    fi
-  fi
-
-  local project_name
-  project_name=$(jq -r '.project' "$toy_dir/prd.json" 2>/dev/null || echo "$toy_project-eval")
-
-  echo ""
-  echo "=== Prompt Effectiveness Eval ==="
-  echo "Toy project: $toy_project ($max_iterations max iterations)"
-
-  # 1. Create timestamped run directory (includes toy project name)
+  # Create timestamped run directory
   TIMESTAMP=$(date +"%Y-%m-%d-%H%M%S")
-  RUN_DIR="$SCRIPT_DIR/runs/$TIMESTAMP-$toy_project"
+  RUN_DIR="$SCRIPT_DIR/runs/$TIMESTAMP-$plan_name"
   mkdir -p "$RUN_DIR"
 
-  # 2. Copy repo to temp build directory
+  # Scaffold project
   TMPDIR_PATH=$(mktemp -d)
+  rm -rf "$TMPDIR_PATH"
   trap "rm -rf $TMPDIR_PATH" EXIT
-  rsync -a --exclude='.git' --exclude='evals/' --exclude='node_modules/' "$REPO_ROOT/" "$TMPDIR_PATH/"
-  cd "$TMPDIR_PATH"
 
-  # 3. Run scaffold.sh
   echo "Scaffolding $project_name..."
-  bash "$SCRIPT_DIR/scaffold.sh" "$project_name"
+  bash "$REPO_ROOT/create-project.sh" "$TMPDIR_PATH" "$PRD_PATH" "$plan_name"
+  cp "$PRD_PATH" "$RUN_DIR/input-prd.json"
 
-  # 4. Copy toy project prd.json over the placeholder
-  cp "$toy_dir/prd.json" specs/prd.json
-  cp "$toy_dir/prd.json" "$RUN_DIR/input-prd.json"
+  # Delegate to multi-round runner
+  bash "$SCRIPT_DIR/multi-round.sh" "$PRD_PATH" "$rounds" "$iterations" "$RUN_DIR" "$TMPDIR_PATH"
+  multi_round_exit=$?
 
-  # 5. Run ralph.sh, capturing output
-  echo "Running Ralph loop (max $max_iterations iterations)..."
-  set +e
-  RALPH_SKIP_KICKOFF=1 bash ./engine/ralph.sh "$max_iterations" 2>&1 | tee "$RUN_DIR/ralph-output.log"
-  RALPH_EXIT=${PIPESTATUS[0]}
-  set -e
-
-  # 6. Copy artefacts to run directory
-  echo "$RALPH_EXIT" > "$RUN_DIR/exit-code.txt"
-  cp specs/prd.json "$RUN_DIR/prd.json" 2>/dev/null || true
-  cp progress.txt "$RUN_DIR/progress.txt" 2>/dev/null || true
-  git log --oneline --all > "$RUN_DIR/git-log.txt" 2>/dev/null || true
-
-  INITIAL_SHA=$(git rev-list --max-parents=0 HEAD 2>/dev/null || echo "")
-  if [ -n "$INITIAL_SHA" ]; then
-    git diff --stat "$INITIAL_SHA" HEAD > "$RUN_DIR/diff-stat.txt" 2>/dev/null || true
+  # If multi-round paused for API failure, don't clean up the build dir
+  if [ -f "$RUN_DIR/paused-build-dir.txt" ]; then
+    trap - EXIT
   fi
+  exit $multi_round_exit
+fi
 
-  # 7. Build summary
-  SUMMARY_FILE="$RUN_DIR/summary.txt"
+# --- Single round ---
 
-  echo "Toy project: $toy_project" > "$SUMMARY_FILE"
+# Create timestamped run directory
+TIMESTAMP=$(date +"%Y-%m-%d-%H%M%S")
+RUN_DIR="$SCRIPT_DIR/runs/$TIMESTAMP-$plan_name"
+mkdir -p "$RUN_DIR"
 
-  # Iteration count
-  iteration_count=$(grep -cE '^\[[0-9]+/[0-9]+\]' "$RUN_DIR/ralph-output.log" 2>/dev/null || echo "0")
-  echo "Iterations: $iteration_count (max $max_iterations)" >> "$SUMMARY_FILE"
+# Scaffold project
+TMPDIR_PATH=$(mktemp -d)
+rm -rf "$TMPDIR_PATH"
+trap "rm -rf $TMPDIR_PATH" EXIT
 
-  # Stories passed
-  if [ -f "$RUN_DIR/prd.json" ]; then
-    total_stories=$(jq '.userStories | length' "$RUN_DIR/prd.json" 2>/dev/null || echo "?")
-    passed_stories=$(jq '[.userStories[] | select(.passes == true)] | length' "$RUN_DIR/prd.json" 2>/dev/null || echo "?")
-    echo "Stories: $passed_stories/$total_stories passed" >> "$SUMMARY_FILE"
-  fi
+echo "Scaffolding $project_name..."
+bash "$REPO_ROOT/create-project.sh" "$TMPDIR_PATH" "$PRD_PATH" "$plan_name"
+cd "$TMPDIR_PATH"
+cp "$PRD_PATH" "$RUN_DIR/input-prd.json"
 
-  # Exit condition
-  local exit_condition
-  if grep -q "Ralph complete" "$RUN_DIR/ralph-output.log" 2>/dev/null; then
-    exit_condition="Ralph complete (promise)"
-  elif grep -q "Ralph received EXIT_SIGNAL" "$RUN_DIR/ralph-output.log" 2>/dev/null; then
-    exit_condition="EXIT_SIGNAL"
-  elif grep -q "CIRCUIT BREAKER" "$RUN_DIR/ralph-output.log" 2>/dev/null; then
-    exit_condition="Circuit breaker"
-  elif grep -q "Ralph reached max iterations" "$RUN_DIR/ralph-output.log" 2>/dev/null; then
-    exit_condition="Max iterations"
-  elif grep -q "Ralph aborted" "$RUN_DIR/ralph-output.log" 2>/dev/null; then
-    exit_condition="Abort"
-  else
-    exit_condition="Unknown"
-  fi
+# Run ralph.sh, capturing output
+echo "Running Ralph loop (max $iterations iterations)..."
+set +e
+RALPH_SKIP_KICKOFF=1 bash .ralph/engine/ralph.sh "$iterations" "$plan_name" 2>&1 | tee "$RUN_DIR/ralph-output.log"
+RALPH_EXIT=${PIPESTATUS[0]}
+set -e
 
-  echo "Exit condition: $exit_condition" >> "$SUMMARY_FILE"
-  echo "Exit code: $RALPH_EXIT" >> "$SUMMARY_FILE"
+# Copy artefacts to run directory
+echo "$RALPH_EXIT" > "$RUN_DIR/exit-code.txt"
+cp ".ralph/specs/prd-${plan_name}.json" "$RUN_DIR/prd.json" 2>/dev/null || true
+cp .ralph/progress.txt "$RUN_DIR/progress.txt" 2>/dev/null || true
+git log --oneline --all > "$RUN_DIR/git-log.txt" 2>/dev/null || true
 
-  # 8. Generate scorecard from template with auto-filled values
+INITIAL_SHA=$(git rev-list --max-parents=0 HEAD 2>/dev/null || echo "")
+if [ -n "$INITIAL_SHA" ]; then
+  git diff --stat "$INITIAL_SHA" HEAD > "$RUN_DIR/diff-stat.txt" 2>/dev/null || true
+fi
 
-  # Build audit points section from expected.md if it exists
-  local audit_points=""
-  local expected_file="$toy_dir/expected.md"
-  if [ -f "$expected_file" ]; then
-    # Extract the "What to look for in the scorecard" section
-    local section
-    section=$(sed -n '/^## What to look for in the scorecard/,/^## /{ /^## What to look for/d; /^## /d; p; }' "$expected_file" 2>/dev/null || true)
-    if [ -n "$section" ]; then
-      audit_points="## Project-Specific Audit Points
+# Build summary
+SUMMARY_FILE="$RUN_DIR/summary.txt"
+
+echo "Project: $plan_name" > "$SUMMARY_FILE"
+
+# Iteration count
+iteration_count=$(grep -cE '^\[[0-9]+/[0-9]+\]' "$RUN_DIR/ralph-output.log" 2>/dev/null || echo "0")
+echo "Iterations: $iteration_count (max $iterations)" >> "$SUMMARY_FILE"
+
+# Stories passed
+total_stories="?"
+passed_stories="?"
+if [ -f "$RUN_DIR/prd.json" ]; then
+  total_stories=$(jq '.userStories | length' "$RUN_DIR/prd.json" 2>/dev/null || echo "?")
+  passed_stories=$(jq '[.userStories[] | select(.passes == true)] | length' "$RUN_DIR/prd.json" 2>/dev/null || echo "?")
+  echo "Stories: $passed_stories/$total_stories passed" >> "$SUMMARY_FILE"
+fi
+
+# Exit condition
+exit_condition="Unknown"
+if grep -q "Ralph complete" "$RUN_DIR/ralph-output.log" 2>/dev/null; then
+  exit_condition="Ralph complete (promise)"
+elif grep -q "Ralph received EXIT_SIGNAL" "$RUN_DIR/ralph-output.log" 2>/dev/null; then
+  exit_condition="EXIT_SIGNAL"
+elif grep -q "CIRCUIT BREAKER" "$RUN_DIR/ralph-output.log" 2>/dev/null; then
+  exit_condition="Circuit breaker"
+elif grep -q "Ralph reached max iterations" "$RUN_DIR/ralph-output.log" 2>/dev/null; then
+  exit_condition="Max iterations"
+elif grep -q "Ralph aborted" "$RUN_DIR/ralph-output.log" 2>/dev/null; then
+  exit_condition="Abort"
+fi
+
+echo "Exit condition: $exit_condition" >> "$SUMMARY_FILE"
+echo "Exit code: $RALPH_EXIT" >> "$SUMMARY_FILE"
+
+# Generate scorecard from template with auto-filled values
+
+# Build audit points section from expected.md if it exists alongside the PRD
+audit_points=""
+expected_file="$prd_dir/expected.md"
+if [ -f "$expected_file" ]; then
+  # Extract the "What to look for in the scorecard" section
+  section=$(sed -n '/^## What to look for in the scorecard/,/^## /{ /^## What to look for/d; /^## /d; p; }' "$expected_file" 2>/dev/null || true)
+  if [ -n "$section" ]; then
+    audit_points="## Project-Specific Audit Points
 
 (From \`expected.md\` — examine these beyond standard behaviour checks)
 
 $section"
-    fi
   fi
+fi
 
-  sed \
-    -e "s|{{TIMESTAMP}}|$TIMESTAMP|g" \
-    -e "s|{{TOY_PROJECT}}|$toy_project|g" \
-    -e "s|{{STORY_COUNT}}|${total_stories:-?}|g" \
-    -e "s|{{ITERATION_COUNT}}|$iteration_count|g" \
-    -e "s|{{EXIT_CONDITION}}|$exit_condition|g" \
-    -e "s|{{EXIT_CODE}}|$RALPH_EXIT|g" \
-    "$SCRIPT_DIR/scorecard-template.md" > "$RUN_DIR/scorecard.md"
+sed \
+  -e "s|{{TIMESTAMP}}|$TIMESTAMP|g" \
+  -e "s|{{PROJECT}}|$plan_name|g" \
+  -e "s|{{STORY_COUNT}}|${total_stories:-?}|g" \
+  -e "s|{{ITERATION_COUNT}}|$iteration_count|g" \
+  -e "s|{{EXIT_CONDITION}}|$exit_condition|g" \
+  -e "s|{{EXIT_CODE}}|$RALPH_EXIT|g" \
+  "$SCRIPT_DIR/scorecard-template.md" > "$RUN_DIR/scorecard.md"
 
-  # Replace the audit points placeholder (multi-line, so use a temp file approach)
-  if [ -n "$audit_points" ]; then
-    # Write audit points to a temp file, then use it for replacement
-    local audit_tmp
-    audit_tmp=$(mktemp)
-    echo "$audit_points" > "$audit_tmp"
-    # Use awk to replace the placeholder line with file contents
-    awk -v file="$audit_tmp" '/\{\{AUDIT_POINTS\}\}/ { while ((getline line < file) > 0) print line; next } 1' "$RUN_DIR/scorecard.md" > "$RUN_DIR/scorecard.md.tmp"
-    mv "$RUN_DIR/scorecard.md.tmp" "$RUN_DIR/scorecard.md"
-    rm -f "$audit_tmp"
-  else
-    # No audit points — remove the placeholder line
-    sed -i '' '/{{AUDIT_POINTS}}/d' "$RUN_DIR/scorecard.md"
-  fi
+# Replace the audit points placeholder (multi-line, so use a temp file approach)
+if [ -n "$audit_points" ]; then
+  audit_tmp=$(mktemp)
+  echo "$audit_points" > "$audit_tmp"
+  awk -v file="$audit_tmp" '/\{\{AUDIT_POINTS\}\}/ { while ((getline line < file) > 0) print line; next } 1' "$RUN_DIR/scorecard.md" > "$RUN_DIR/scorecard.md.tmp"
+  mv "$RUN_DIR/scorecard.md.tmp" "$RUN_DIR/scorecard.md"
+  rm -f "$audit_tmp"
+else
+  # No audit points — remove the placeholder line
+  portable_sed '/{{AUDIT_POINTS}}/d' "$RUN_DIR/scorecard.md"
+fi
 
-  # Print summary
-  echo ""
-  echo "--- Run Summary ---"
-  cat "$SUMMARY_FILE"
-  echo ""
-  echo "Full run data: $RUN_DIR"
-  echo "Review: $RUN_DIR/scorecard.md"
-}
-
-case "${1:-}" in
-  loop)  run_loop ;;
-  smoke) run_smoke ;;
-  prompt) run_prompt "${2:-}" "${3:-}" ;;
-  beast) run_beast "${2:-}" "${3:-}" ;;
-  all)
-    run_loop
-    run_smoke
-    run_prompt "${2:-}" "${3:-}"
-    ;;
-  *) usage ;;
-esac
+# Print summary
+echo ""
+echo "--- Run Summary ---"
+cat "$SUMMARY_FILE"
+echo ""
+echo "Full run data: $RUN_DIR"
+echo "Review: $RUN_DIR/scorecard.md"

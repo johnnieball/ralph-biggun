@@ -13,6 +13,7 @@ set -e
 #   ./create-project.sh ~/projects/my-app specs/my-app-prd.json my-app
 
 TEMPLATE_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$TEMPLATE_DIR/lib/utils.sh"
 
 if [ -z "$1" ]; then
   echo "Usage: ./create-project.sh <target-path> [prd.json] [plan-name]"
@@ -44,15 +45,6 @@ echo "Creating $PROJECT_NAME at $TARGET..."
 
 # Create target directory
 mkdir -p "$TARGET"
-
-# Portable in-place sed (macOS requires '' as separate arg)
-portable_sed() {
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' "$@"
-  else
-    sed -i "$@"
-  fi
-}
 
 # --- Copy build tooling (Bun/TS scaffolding) ---
 cp "$TEMPLATE_DIR/package.json" "$TARGET/"

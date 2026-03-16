@@ -7,34 +7,14 @@ PASS=0
 FAIL=0
 TMPDIR_PATHS=()
 
+source "$SCRIPT_DIR/../lib/assert.sh"
+
 cleanup() {
   for d in "${TMPDIR_PATHS[@]}"; do
     rm -rf "$d" 2>/dev/null || true
   done
 }
 trap cleanup EXIT
-
-assert_contains() {
-  local label="$1" haystack="$2" needle="$3"
-  if echo "$haystack" | grep -q "$needle"; then
-    echo "  PASS: $label"
-    PASS=$(( PASS + 1 ))
-  else
-    echo "  FAIL: $label (expected to find '$needle')"
-    FAIL=$(( FAIL + 1 ))
-  fi
-}
-
-assert_exit_code() {
-  local label="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $label"
-    PASS=$(( PASS + 1 ))
-  else
-    echo "  FAIL: $label (expected exit $expected, got $actual)"
-    FAIL=$(( FAIL + 1 ))
-  fi
-}
 
 setup_temp_repo() {
   local ralphrc_content="$1"
@@ -88,7 +68,7 @@ exit_code=$?
 set -e
 
 assert_exit_code "exits with code 1" "1" "$exit_code"
-assert_contains "mentions circuit breaker" "$output" "CIRCUIT BREAKER: No file changes"
+assert_output_contains "mentions circuit breaker" "$output" "CIRCUIT BREAKER: No file changes"
 
 # --- Subtest 2: Same-error circuit breaker ---
 echo ""
@@ -110,12 +90,6 @@ exit_code=$?
 set -e
 
 assert_exit_code "exits with code 1" "1" "$exit_code"
-assert_contains "mentions same output repeated" "$output" "CIRCUIT BREAKER: Same output repeated"
+assert_output_contains "mentions same output repeated" "$output" "CIRCUIT BREAKER: Same output repeated"
 
-echo ""
-echo "Circuit breaker tests: $PASS passed, $FAIL failed"
-
-if [ "$FAIL" -gt 0 ]; then
-  exit 1
-fi
-exit 0
+print_summary "Circuit breaker tests"

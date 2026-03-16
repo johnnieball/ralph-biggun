@@ -6,15 +6,17 @@ Project template for Ralph — an autonomous TDD development loop powered by Cla
 
 ### Entry Points
 
-- `ralph` — CLI dispatcher: `ralph init` or `ralph run`
+- `ralph` — CLI dispatcher: `ralph init`, `ralph run`, `ralph prd-build`
 - `create-project.sh` — Greenfield: scaffolds Bun/TS project with `.ralph/` inside
 - `commands/init.sh` — Brownfield: initialises `.ralph/` in any existing project
 - `commands/run.sh` — Unified run wrapper: detects `.ralph/` or legacy layout
+- `commands/prd-build.sh` — Automated PRD generation loop from spec files
 
 ### Engine (copied into target projects)
 
 - `engine/ralph.sh` — The autonomous loop: spawns fresh Claude `--print` iterations, tracks progress, circuit breakers
 - `engine/prompt.md` — Prompt injected into each iteration (RED-GREEN-REFACTOR workflow, uses `__PLACEHOLDER__` tokens)
+- `engine/prd-build-prompt.md` — Prompt for PRD generation/refinement iterations (uses `__PLACEHOLDER__` tokens)
 - `engine/snapshot.sh` — Generates `codebase-snapshot.md` between iterations (supports typescript, python, generic parsers)
 
 ### Configuration
@@ -40,10 +42,20 @@ Project template for Ralph — an autonomous TDD development loop powered by Cla
 
 ### Evals
 
-- `evals/loop-tests/` — Mock-claude engine tests (circuit breakers, exit detection, rate limiting, hook blocking)
-- `evals/smoke-test.sh` — End-to-end scaffold + build test
-- `evals/test-ralph-init.sh` — Init command tests (stack detection, merging, idempotency)
-- `evals/test-brownfield-loop.sh` — Engine tests with `.ralph/` layout
+- `evals/run-eval.sh <prd.json> [--rounds N] [--iterations M]` — Single entry point: point at any PRD, run the eval
+- `evals/multi-round.sh` — Multi-round skip-and-continue logic (used when --rounds > 1)
+- `evals/analyse-run.sh` — Post-run diagnostics (auto-detects single vs multi-round)
+- `evals/prds/` — Reference PRDs (calculator, task-queue, beast)
+
+### Tests
+
+- `tests/run-tests.sh` — Runs all infrastructure tests (no API calls)
+- `tests/loop-tests/` — Mock-claude engine tests (circuit breakers, exit detection, rate limiting, hook blocking)
+- `tests/smoke-test.sh` — End-to-end scaffold + build test
+- `tests/test-ralph-init.sh` — Init command tests (stack detection, merging, idempotency)
+- `tests/test-brownfield-loop.sh` — Engine tests with `.ralph/` layout
+- `tests/test-ralph-cli.sh` — CLI dispatcher tests
+- `tests/test-run-sh.sh` — run.sh error path tests
 
 ## Commands
 
@@ -64,9 +76,10 @@ Project template for Ralph — an autonomous TDD development loop powered by Cla
 ### Brownfield (existing project, any stack)
 
 1. `ralph init [--stack <preset>] [target-dir]`
-2. Copy PRD to `.ralph/specs/prd-<plan>.json`, set `RALPH_PLAN` in `.ralph/config.sh`
-3. `/prd-review [plan-name]` (in Claude Code)
-4. `.ralph/engine/ralph.sh 20 [plan-name]` (or `ralph run 20 [plan-name]`)
+2. `ralph prd-build my-spec.md [plan-name]` — or manually copy PRD to `.ralph/specs/prd-<plan>.json`
+3. Set `RALPH_PLAN` in `.ralph/config.sh`
+4. `/prd-review [plan-name]` (in Claude Code)
+5. `.ralph/engine/ralph.sh 20 [plan-name]` (or `ralph run 20 [plan-name]`)
 
 ### Engine Parameterisation
 

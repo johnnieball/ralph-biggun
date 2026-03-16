@@ -4,18 +4,18 @@
 
 This is deliberately harder than calculator. It's designed to probe the failure modes that appear on real projects but not on trivial ones.
 
-| Story | What it stress-tests |
-|-------|---------------------|
-| US-001 | Foundational architecture choices that ripple forward |
-| US-002 | Async testing, time mocking, observing mid-execution state |
-| US-003 | Forced refactoring of earlier code, timer mocking |
-| US-004 | Cross-module integration, error isolation in callbacks |
-| US-005 | Major architectural shift mid-project, promise-based testing |
-| US-006 | Dependency injection, system boundary mocking done right |
-| US-007 | Retrofitting into existing pipeline, handler signature change |
-| US-008 | Data structure refactor with backward compatibility |
+| Story  | What it stress-tests                                            |
+| ------ | --------------------------------------------------------------- |
+| US-001 | Foundational architecture choices that ripple forward           |
+| US-002 | Async testing, time mocking, observing mid-execution state      |
+| US-003 | Forced refactoring of earlier code, timer mocking               |
+| US-004 | Cross-module integration, error isolation in callbacks          |
+| US-005 | Major architectural shift mid-project, promise-based testing    |
+| US-006 | Dependency injection, system boundary mocking done right        |
+| US-007 | Retrofitting into existing pipeline, handler signature change   |
+| US-008 | Data structure refactor with backward compatibility             |
 | US-009 | State machine complexity, interaction between multiple features |
-| US-010 | TypeScript generics threading through existing code |
+| US-010 | TypeScript generics threading through existing code             |
 
 ## Success criteria
 
@@ -34,17 +34,20 @@ This is deliberately harder than calculator. It's designed to probe the failure 
 ## Failure modes to watch for
 
 ### High probability
+
 - **PE-03 (Batching)** at US-001/US-002 - these look simple enough the agent might try to knock both out
 - **PE-01 (Horizontal slicing)** at US-003 - multiple retry behaviours tempt writing all tests first
 - **PE-04 (Gold-plating)** at US-005 - queue is a natural place to add features not in the PRD
 - **PE-08 (Ignored reference files)** - does the agent read the TDD skill before US-001?
 
 ### Medium probability
+
 - **PE-09 (Mock overuse)** at US-006 - mocking the logger in job tests instead of injecting it
 - **CB-01 (False circuit breaker)** at US-005/US-007 - if a refactoring iteration modifies files but doesn't commit (e.g. tests fail, agent can't fix in one iteration)
 - **PE-02 (GREEN before RED)** at US-007 - timeout is tempting to implement first then test
 
 ### Lower probability but severe
+
 - **PE-05 (No exit)** - with 10 stories there's more surface area for the agent to find "improvements"
 - **PE-10 (Test errors not failures)** at US-010 - TypeScript generics can cause compilation errors that look like test failures
 - Agent breaks earlier tests when retrofitting US-007 (handler signature change) or US-008 (queue internals)

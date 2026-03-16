@@ -1,117 +1,90 @@
 # Eval System
 
-Three testing layers for the Ralph loop template.
+Point at any PRD JSON, run the eval.
 
-## Layers
-
-### 1. Loop Mechanics (`evals/loop-tests/`)
-
-Deterministic tests for ralph.sh's bash logic. Uses `mock-claude.sh` to simulate Claude CLI output with zero API calls. Tests circuit breakers, exit detection, rate limiting, and git hook blocking.
+## Usage
 
 ```bash
-./evals/run-eval.sh loop
+# Single round (default: 20 iterations)
+./evals/run-eval.sh evals/prds/calculator/prd.json
+./evals/run-eval.sh evals/prds/task-queue/prd.json --iterations 25
+
+# Multi-round (overnight, skip-and-continue)
+./evals/run-eval.sh evals/prds/beast/prd.json --rounds 5 --iterations 30
+
+# Any PRD — not limited to bundled examples
+./evals/run-eval.sh ~/my-project/prd.json --iterations 25 --rounds 3
 ```
 
-### 2. Skeleton Integrity (`evals/smoke-test.sh`)
+### Flags
 
-Tests that the project scaffolds correctly: `bun install`, `bun run test`, `bun run typecheck`, git init, placeholder replacement, and self-cleanup of eval artefacts.
+- `--rounds N` — Number of rounds (default: 1). When >1, uses multi-round logic with skip-and-continue.
+- `--iterations M` — Max iterations per round (default: 20).
+
+### Multi-round mode
+
+When `--rounds > 1`, the runner uses skip-and-continue logic: when Ralph gets stuck on a story, it marks it as skipped and starts a new round. Designed for overnight unattended runs. Must be run from a plain terminal (not inside Claude Code).
+
+### Post-run analysis
 
 ```bash
-./evals/run-eval.sh smoke
+bash evals/analyse-run.sh evals/runs/<timestamp>/
 ```
 
-### 3. Prompt Effectiveness (`evals/toy-projects/`)
+Auto-detects single vs multi-round runs.
 
-End-to-end eval using real API calls against toy projects. Runs the full Ralph loop and captures results for manual scoring.
+## Toy Projects
+
+**calculator** — Baseline. 5 simple stories. Run this first.
+
+**task-queue** — Stress-test. 10 stories covering async testing, refactoring, cross-module integration.
+
+**beast** — Large-scale. 20 stories, 4 workstreams, infrastructure-first architecture.
+
+## Infrastructure Tests
+
+Infrastructure tests (loop mechanics, smoke, init, CLI, etc.) live in `tests/`:
 
 ```bash
-./evals/run-eval.sh prompt                 # calculator (default, 15 iterations)
-./evals/run-eval.sh prompt calculator      # explicit calculator
-./evals/run-eval.sh prompt task-queue      # task-queue (20 iterations default)
-./evals/run-eval.sh prompt task-queue 25   # task-queue with custom iteration limit
+bash tests/run-tests.sh
 ```
 
-#### Toy Projects
-
-**calculator** — Baseline project. 5 simple stories (add, subtract, multiply, divide, expression parser). Validates the basic loop works: vertical slicing, TDD, clean exit. Run this first.
-
-**task-queue** — Stress-test project. 10 stories covering architectural decisions, async testing, refactoring existing code, system boundary mocking (timers, file system), cross-module integration, dependency injection, and TypeScript generics. Designed to expose failure modes that trivial projects cannot. Run this after the calculator baseline passes.
-
-### 4. Beast Mode (`evals/beast-wrapper.sh`)
-
-Overnight eval for large, multi-workstream projects. Runs the full Ralph loop in rounds with skip-and-continue logic — when the agent gets stuck on a story, the wrapper marks it as skipped and starts a new round.
-
-```bash
-./evals/run-eval.sh beast              # defaults: 5 rounds, 30 iterations per round
-./evals/run-eval.sh beast 3 20         # 3 rounds, 20 iterations per round
-./evals/beast-wrapper.sh 5 30          # direct invocation
-```
-
-**What it tests:** Infrastructure-first architecture, file I/O, external dependencies (Puppeteer, markdown libraries), schema-driven development with Zod discriminated unions, multi-workstream projects (4 semi-independent workstreams, 20 stories), cross-cutting refactors, plugin architecture, and configuration layering.
-
-**How it works:**
-
-1. Scaffolds a fresh build directory from the template
-2. Copies the beast `prd.json` (20 stories) into `specs/`
-3. Runs `ralph.sh` for up to N iterations per round
-4. When Ralph exits (circuit breaker, max iterations, or timeout):
-   - Detects API-level failures (zero commits + few iterations) and pauses gracefully
-   - Otherwise identifies the stuck story from the output log
-   - Marks it as `"skipped"` in `prd.json` and appends a skip notice to `progress.txt`
-   - Starts a new round — Ralph picks up the next unfinished story
-5. Repeats for up to M rounds or until all stories are done
-6. Produces per-round logs, a final summary, and a scorecard template
-
-**Morning debrief:** Check `evals/runs/<timestamp>-beast/`:
-
-- `summary.txt` — total rounds, per-round breakdown, final tally of passed/skipped/remaining
-- `round-N-ralph-output.log` — full Ralph output for each round
-- `round-N-prd.json` — prd.json snapshot after each round (shows progression)
-- `final-prd.json` — final state of all stories
-- `scorecard.md` — scoring template
-- `paused-build-dir.txt` — if the run paused due to API failure, contains the temp dir path for manual resumption
-
-**Important:** Beast mode is designed for overnight unattended runs. It is NOT included in `./evals/run-eval.sh all` — run it separately. Must be run from a plain terminal (not inside Claude Code).
+These are free (no API calls). Eval runs cost API credits.
 
 ## Directory Layout
 
 ```
 evals/
-  README.md              # This file
-  run-eval.sh            # Orchestrator: loop | smoke | prompt | beast | all
-  analyse-run.sh         # Post-run analysis (detects standard vs beast runs)
-  beast-wrapper.sh       # Overnight multi-round runner with skip-and-continue
-  scorecard-template.md  # Manual scoring template
-  failure-taxonomy.md    # Catalogue of observed failure modes
-  prompt-changelog.md    # Track prompt changes vs eval results
+  run-eval.sh              # Single entry point: takes PRD path + flags
+  multi-round.sh           # Multi-round loop logic (used when --rounds > 1)
+  analyse-run.sh           # Post-run diagnostics
+  scorecard-template.md    # Manual scoring template
+  failure-taxonomy.md      # Reference: known failure patterns
+  prompt-changelog.md      # Reference: prompt version tracking
+  README.md
+  prds/
+    calculator/prd.json, expected.md
+    task-queue/prd.json, expected.md
+    beast/prd.json, expected.md
+  runs/                    # Gitignored — eval output
+
+tests/
+  run-tests.sh             # Runs all infrastructure tests
+  smoke-test.sh            # Scaffold + build validation
+  test-ralph-init.sh       # ralph init command tests
+  test-brownfield-loop.sh  # Engine tests with .ralph/ layout
+  test-ralph-cli.sh        # CLI dispatcher tests
+  test-run-sh.sh           # run.sh error path tests
+  lib/
+    assert.sh              # Shared test helpers
   loop-tests/
-    mock-claude.sh       # Fake Claude CLI for deterministic testing
-    test-circuit-breaker.sh
-    test-exit-detection.sh
-    test-rate-limiting.sh
-    test-hook-blocking.sh
-    run-loop-tests.sh    # Runs all loop tests
-  scaffold.sh            # In-place project scaffolding for eval runs
-  smoke-test.sh
-  toy-projects/
-    calculator/
-      prd.json           # Toy PRD with 5 user stories
-      expected.md        # What a successful run looks like
-    task-queue/
-      prd.json           # Stress-test PRD with 10 user stories
-      expected.md        # Expected outcomes and failure modes to watch for
-    beast/
-      prd.json           # 20-story static site generator PRD
-      expected.md        # Expected outcomes, workstream map, failure points
-  runs/                  # Gitignored — prompt eval output goes here
-    .gitkeep
+    run-loop-tests.sh, mock-claude.sh
+    test-circuit-breaker.sh, test-exit-detection.sh
+    test-rate-limiting.sh, test-hook-blocking.sh
 ```
 
 ## Notes
 
 - `evals/runs/` is gitignored. Eval output stays local.
-- The `evals/` directory is stripped during scaffolding (both `create-project.sh` and `evals/scaffold.sh`).
-- Loop tests and smoke tests are free (no API calls). Run them liberally.
-- Prompt evals cost API credits. Run sparingly and review results with `analyse-run.sh`.
-- Use `scorecard-template.md` for manual assessment after prompt evals.
+- Use `scorecard-template.md` for manual assessment after eval runs.
 - Track failure patterns in `failure-taxonomy.md`.

@@ -9,6 +9,7 @@ set -e
 # Merges into .claude/ without clobbering existing files.
 
 RALPH_HOME="$(cd "$(dirname "$0")/.." && pwd)"
+source "$RALPH_HOME/lib/utils.sh"
 
 # Parse arguments
 STACK=""
@@ -29,15 +30,6 @@ done
 
 TARGET_DIR="${TARGET_DIR:-.}"
 TARGET_DIR="$(cd "$TARGET_DIR" 2>/dev/null && pwd)" || { echo "ERROR: Target directory does not exist: $TARGET_DIR"; exit 1; }
-
-# Portable in-place sed (macOS requires '' as separate arg)
-portable_sed() {
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' "$@"
-  else
-    sed -i "$@"
-  fi
-}
 
 # --- Stack detection ---
 detect_stack() {
@@ -117,6 +109,7 @@ mkdir -p "$TARGET_DIR/.ralph/logs"
 # Engine files
 cp "$RALPH_HOME/engine/ralph.sh" "$TARGET_DIR/.ralph/engine/"
 cp "$RALPH_HOME/engine/prompt.md" "$TARGET_DIR/.ralph/engine/"
+cp "$RALPH_HOME/engine/prd-build-prompt.md" "$TARGET_DIR/.ralph/engine/"
 cp "$RALPH_HOME/engine/snapshot.sh" "$TARGET_DIR/.ralph/engine/"
 chmod +x "$TARGET_DIR/.ralph/engine/ralph.sh"
 chmod +x "$TARGET_DIR/.ralph/engine/snapshot.sh"
@@ -159,12 +152,7 @@ sed \
   "$RALPH_HOME/templates/CLAUDE-ralph.md" > "$TARGET_DIR/.ralph/CLAUDE-ralph.md"
 
 # --- Set up .claude/ (merge, don't clobber) ---
-mkdir -p "$TARGET_DIR/.claude/hooks"
 mkdir -p "$TARGET_DIR/.claude/skills"
-
-# Symlink hook (replace existing file with symlink)
-rm -f "$TARGET_DIR/.claude/hooks/block-dangerous-git.sh"
-ln -s "../../.ralph/hooks/block-dangerous-git.sh" "$TARGET_DIR/.claude/hooks/block-dangerous-git.sh"
 
 # Settings.json — merge hook entry
 SETTINGS_FILE="$TARGET_DIR/.claude/settings.json"
