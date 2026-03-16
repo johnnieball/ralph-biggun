@@ -4,13 +4,13 @@ Read these files in order:
 
 1. `CLAUDE.md` - Project-specific patterns, conventions, and commands. This is your operating manual.
 2. `__PRD_PATH__` - The product requirements document containing all user stories.
-3. `progress.txt` - Start with the **Codebase Patterns** section at the top. These are consolidated learnings from previous iterations. Read them before doing anything else. Then read the full log to understand recent work.
+3. `__PROGRESS_FILE__` - Start with the **Codebase Patterns** section at the top. These are consolidated learnings from previous iterations. Read them before doing anything else. Then read the full log to understand recent work.
 
 The last 10 RALPH commits (SHA, date, full message) have been appended to the bottom of this prompt by ralph.sh. Review them to understand what work has been done recently and avoid duplicating effort.
 
-4. `codebase-snapshot.md` — If this file exists, read it. It contains a deterministic snapshot of the codebase generated between iterations: file tree, public exports, import graph, test counts, and alerts. Compare the import graph against `specs/architecture.md` dependency rules. Flag any violations in your iteration notes.
+4. `codebase-snapshot.md` — If this file exists, read it. It contains a deterministic snapshot of the codebase generated between iterations: file tree, public exports, import graph, test counts, and alerts. Compare the import graph against `__SPECS_DIR__/architecture.md` dependency rules. Flag any violations in your iteration notes.
 
-5. `specs/architecture.md` — If this file contains only HTML comment placeholders (`<!-- Generated from PRD`), populate it before starting story work:
+5. `__SPECS_DIR__/architecture.md` — If this file contains only HTML comment placeholders (`<!-- Generated from PRD`), populate it before starting story work:
    - Read `__PRD_PATH__` and identify the modules, their responsibilities, and dependency direction
    - Fill in Modules, Dependency Rules, and Hard Constraints with concrete entries
    - Keep it under 20 lines total
@@ -35,15 +35,15 @@ ONE task per iteration - this is non-negotiable. Do not batch. Do not "quickly k
 
 Explore the repo and fill your context window with relevant information that will allow you to complete the task.
 
-If `codebase-snapshot.md` exists, check its import graph against `specs/architecture.md` dependency rules. If you spot violations in modules you're about to touch, fix them as part of this iteration.
+If `codebase-snapshot.md` exists, check its import graph against `__SPECS_DIR__/architecture.md` dependency rules. If you spot violations in modules you're about to touch, fix them as part of this iteration.
 
 Read existing tests to understand testing patterns before writing new ones. Look at naming conventions, assertion styles, test structure, and how mocks (if any) are used.
 
-If this task involves writing code, read the TDD skill at `skills/tdd/SKILL.md` to internalise the methodology before proceeding.
+If this task involves writing code, read the TDD skill at `__SKILLS_DIR__/tdd/SKILL.md` to internalise the methodology before proceeding.
 
 Understand the shape of the code you will be changing. Read the files you will modify. Read their tests. Read their callers. Do not start coding until you understand the local context.
 
-Check which skill reference files are relevant to this story. Scan the filenames in `skills/tdd/` and read any that relate to your planned approach. Examples: if your story involves dependency injection or system boundaries, read `mocking.md`. If it involves module boundaries or public API design, read `deep-modules.md` and `interface-design.md`. If it involves restructuring existing code, read `refactoring.md`. If none are relevant, skip this step - but if you find yourself reaching for a pattern you're unsure about, check the skill files before inventing your own.
+Check which skill reference files are relevant to this story. Scan the filenames in `__SKILLS_DIR__/tdd/` and read any that relate to your planned approach. Examples: if your story involves dependency injection or system boundaries, read `mocking.md`. If it involves module boundaries or public API design, read `deep-modules.md` and `interface-design.md`. If it involves restructuring existing code, read `refactoring.md`. If none are relevant, skip this step - but if you find yourself reaching for a pattern you're unsure about, check the skill files before inventing your own.
 
 If this story requires changing a shared function's signature (adding parameters, changing return types), plan the ripple before writing the first test. List all callers and test files that will need updating. Budget the caller updates into your GREEN step rather than fixing them reactively after tests break.
 
@@ -113,7 +113,7 @@ Check the following triggers against the code you've written or modified this it
 - You have 3+ custom error classes with no shared base - consider a base error class
 - You're copy-pasting a pattern for the third time - extract it
 
-If a needed refactor is too large to do safely within this iteration, note it as technical debt in progress.txt under a "Technical Debt" heading and flag it in RALPH_STATUS RECOMMENDATION field.
+If a needed refactor is too large to do safely within this iteration, note it as technical debt in **PROGRESS_FILE** under a "Technical Debt" heading and flag it in RALPH_STATUS RECOMMENDATION field.
 
 **Never refactor while RED.** Get to GREEN first.
 
@@ -126,9 +126,9 @@ If this task has multiple behaviours to implement, loop back to RED for the next
 Before committing, run the full verification suite:
 
 ```bash
-bun run test
-bun run typecheck
-bun run lint
+__TEST_CMD__
+__TYPECHECK_CMD__
+__LINT_CMD__
 ```
 
 **From the Iron Law of Verification:**
@@ -162,7 +162,7 @@ Blockers/notes: <anything the next iteration should know>
 
 # PROGRESS
 
-Append to `progress.txt` (never replace existing content):
+Append to `__PROGRESS_FILE__` (never replace existing content):
 
 ```
 ## [Date/Time] - [Story ID]
@@ -175,9 +175,9 @@ Append to `progress.txt` (never replace existing content):
 ---
 ```
 
-If you discover a **reusable pattern** that future iterations should know about, add it to the `## Codebase Patterns` section at the **top** of `progress.txt`. Only add patterns that are general and reusable, not story-specific details.
+If you discover a **reusable pattern** that future iterations should know about, add it to the `## Codebase Patterns` section at the **top** of `__PROGRESS_FILE__`. Only add patterns that are general and reusable, not story-specific details.
 
-Before appending your progress entry, check the length of progress.txt. If it's getting long (over ~100 lines), compress it: summarise all completed stories older than the last 5 into a "Completed Work Summary" section at the top (max 20 lines). Keep the Codebase Patterns section, the Technical Debt section (if any), and the last 5 detailed iteration entries. Remove the detailed entries for older iterations. The goal is to keep progress.txt informative without growing unbounded.
+Before appending your progress entry, check the length of **PROGRESS_FILE**. If it's getting long (over ~100 lines), compress it: summarise all completed stories older than the last 5 into a "Completed Work Summary" section at the top (max 20 lines). Keep the Codebase Patterns section, the Technical Debt section (if any), and the last 5 detailed iteration entries. Remove the detailed entries for older iterations. The goal is to keep **PROGRESS_FILE** informative without growing unbounded.
 
 Check if any directories you edited have nearby `CLAUDE.md` files. If you discovered something future iterations should know (API conventions, gotchas, dependencies between files, testing approaches), add it there.
 
@@ -384,11 +384,10 @@ RECOMMENDATION: Blocked on [specific dependency] - need [what's needed]
 
 The following files and directories are part of Ralph's infrastructure. NEVER delete, move, rename, or overwrite these under any circumstances:
 
-- `engine/` (entire directory - prompt.md, ralph.sh, snapshot.sh)
-- `specs/` (entire directory - architecture.md, prd.json structure)
-- `skills/` (entire directory and all contents)
-- `progress.txt` (append only - never replace, never delete content)
-- `.ralphrc` (project configuration)
+- `__ENGINE_DIR__/` (entire directory - prompt.md, ralph.sh, snapshot.sh)
+- `__SPECS_DIR__/` (entire directory - architecture.md, prd.json structure)
+- `__SKILLS_DIR__/` (entire directory and all contents)
+- `__PROGRESS_FILE__` (append only - never replace, never delete content)
 - `CLAUDE.md` (update Codebase Patterns section only - never delete existing content)
 
 When performing cleanup, refactoring, or restructuring tasks: these files are NOT part of your project code. They are Ralph's internal control files that keep the development loop running. Deleting them will break Ralph and halt all autonomous development.

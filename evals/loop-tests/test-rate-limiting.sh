@@ -29,9 +29,14 @@ mkdir -p engine
 cp "$REPO_ROOT/engine/ralph.sh" engine/
 cp "$REPO_ROOT/engine/prompt.md" engine/
 
+# Provide RALPH_PLAN and a dummy PRD
+mkdir -p specs
+echo '{"userStories":[]}' > specs/prd-test.json
+
 # Use normal scenario (creates commits) with low MAX_CALLS_PER_HOUR
 # but high enough MAX_ITERATIONS to get a few iterations in
 cat > .ralphrc << 'EOF'
+RALPH_PLAN=test
 MAX_CALLS_PER_HOUR=2
 MAX_ITERATIONS=3
 CB_NO_PROGRESS_THRESHOLD=10

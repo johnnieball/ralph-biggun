@@ -13,6 +13,7 @@ if [ -z "$1" ]; then
 fi
 
 PROJECT_NAME="$1"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Portable in-place sed (macOS requires '' as separate arg)
 portable_sed() {
@@ -25,33 +26,42 @@ portable_sed() {
 
 # Replace placeholders
 portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" package.json
-portable_sed "s/\[Project Name\]/$PROJECT_NAME/g" CLAUDE.md
-portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" specs/architecture.md
 
 # Strip eval infrastructure (not needed in scaffolded projects)
 rm -rf evals/
 rm -f setup.sh create-project.sh upgrade-spec.md
 
-# Create empty progress.txt
-cat > progress.txt << 'EOF'
-# Ralph Progress Log
-
-## Codebase Patterns
-(Patterns will be added here by Ralph as it discovers reusable conventions)
-
-## Technical Debt
-(refactoring needs noted during the build - address when capacity allows)
-
----
-
-Started: (date will be filled by first iteration)
----
-EOF
-
 # Set permissions
 chmod +x engine/ralph.sh
 [ -f engine/snapshot.sh ] && chmod +x engine/snapshot.sh
-[ -f .claude/hooks/block-dangerous-git.sh ] && chmod +x .claude/hooks/block-dangerous-git.sh
+
+# Initialise Ralph via init.sh (creates .ralph/ layout)
+# Create a bun.lock marker for stack detection
+touch bun.lock
+bash commands/init.sh --stack bun-typescript .
+
+# Write project-specific CLAUDE.md (init creates a one-line directive)
+cat > CLAUDE.md << CLAUDEEOF
+# $PROJECT_NAME
+
+## Commands
+
+- \`bun run dev\` — watch mode (\`bun run --watch src/index.ts\`)
+- \`bun run test\` — run tests (Vitest)
+- \`bun run typecheck\` — TypeScript type checking
+- \`bun run lint\` — linting (oxlint)
+
+## Codebase Patterns
+
+(Patterns will be added here by Ralph during iterations)
+
+<!-- Ralph --> Read .ralph/CLAUDE-ralph.md for autonomous development loop instructions.
+CLAUDEEOF
+
+# Replace architecture.md placeholder
+if [ -f .ralph/specs/architecture.md ]; then
+  portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" .ralph/specs/architecture.md
+fi
 
 # Initialise git (must happen before bun install so husky's prepare script works)
 rm -rf .git

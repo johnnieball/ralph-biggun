@@ -116,26 +116,31 @@ else
   FAIL=$(( FAIL + 1 ))
 fi
 
-# 7. Assert placeholder replacement
-assert_contains "CLAUDE.md contains test-project" "CLAUDE.md" "test-project"
+# 7. Assert placeholder replacement and Ralph directive
+assert_contains "CLAUDE.md has project name" "CLAUDE.md" "test-project"
+assert_contains "CLAUDE.md has Ralph directive" "CLAUDE.md" "<!-- Ralph -->"
 assert_contains "package.json contains test-project" "package.json" "test-project"
-assert_contains "architecture.md contains test-project" "specs/architecture.md" "test-project"
 
 # 8. Assert eval/scaffold artefacts stripped
 assert_false "evals/ directory does not exist" test -d evals
 assert_false "create-project.sh does not exist" test -f create-project.sh
 assert_false "setup.sh does not exist" test -f setup.sh
 
-# 9. Assert Ralph machinery present
-assert_true "engine/ralph.sh exists" test -f engine/ralph.sh
-assert_true "engine/prompt.md exists" test -f engine/prompt.md
-assert_true "engine/snapshot.sh exists" test -f engine/snapshot.sh
-assert_true "specs/architecture.md exists" test -f specs/architecture.md
-assert_true "skills/tdd/SKILL.md exists" test -f skills/tdd/SKILL.md
-assert_true ".claude/hooks/block-dangerous-git.sh exists" test -f .claude/hooks/block-dangerous-git.sh
-assert_true "progress.txt exists" test -f progress.txt
-assert_true ".ralphrc exists" test -f .ralphrc
+# 9. Assert Ralph machinery present (.ralph/ layout)
+assert_true ".ralph/engine/ralph.sh exists" test -f .ralph/engine/ralph.sh
+assert_true ".ralph/engine/prompt.md exists" test -f .ralph/engine/prompt.md
+assert_true ".ralph/engine/snapshot.sh exists" test -f .ralph/engine/snapshot.sh
+assert_true ".ralph/specs/architecture.md exists" test -f .ralph/specs/architecture.md
+assert_true ".ralph/skills/tdd/SKILL.md exists" test -f .ralph/skills/tdd/SKILL.md
+assert_true ".ralph/hooks/block-dangerous-git.sh exists" test -f .ralph/hooks/block-dangerous-git.sh
+assert_true ".ralph/progress.txt exists" test -f .ralph/progress.txt
+assert_true ".ralph/config.sh exists" test -f .ralph/config.sh
+assert_true ".ralph/CLAUDE-ralph.md exists" test -f .ralph/CLAUDE-ralph.md
 assert_true ".gitignore exists" test -f .gitignore
+
+# 10. Assert .claude/ integration
+assert_true ".claude/settings.json exists" test -f .claude/settings.json
+assert_true ".claude/hooks symlink exists" test -L .claude/hooks/block-dangerous-git.sh
 
 echo ""
 echo "Smoke tests: $PASS passed, $FAIL failed"

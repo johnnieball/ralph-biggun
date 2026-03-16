@@ -1,23 +1,49 @@
 # ralph-greenfield
 
-Project template for Ralph — an autonomous TDD development loop powered by Claude Code. Not an application itself; it scaffolds new projects via `create-project.sh`.
+Project template for Ralph — an autonomous TDD development loop powered by Claude Code. Supports both greenfield scaffolding (`create-project.sh`) and brownfield initialisation (`ralph init`).
 
 ## Key Files
 
-- `create-project.sh` — Creates a new project from this template at a target path
+### Entry Points
+
+- `ralph` — CLI dispatcher: `ralph init` or `ralph run`
+- `create-project.sh` — Greenfield: scaffolds Bun/TS project with `.ralph/` inside
+- `commands/init.sh` — Brownfield: initialises `.ralph/` in any existing project
+- `commands/run.sh` — Unified run wrapper: detects `.ralph/` or legacy layout
+
+### Engine (copied into target projects)
+
 - `engine/ralph.sh` — The autonomous loop: spawns fresh Claude `--print` iterations, tracks progress, circuit breakers
-- `.claude/skills/prd-review/` — PRD review skill: `/prd-review [plan-name]` to review and auto-fix a PRD before running Ralph
-- `engine/prompt.md` — Prompt injected into each Ralph iteration (RED-GREEN-REFACTOR workflow)
-- `engine/snapshot.sh` — Generates `codebase-snapshot.md` between iterations (file tree, exports, imports, tests)
-- `specs/prd-<plan>.json` — Product requirements documents (user stories with acceptance criteria)
-- `specs/architecture.md` — Module boundaries and dependency rules (populated at first iteration)
-- `.ralphrc` `RALPH_PLAN=` — Selects which PRD file to use (`specs/prd-<name>.json`)
-- `skills/tdd/` — TDD methodology reference (SKILL.md, mocking.md, deep-modules.md, interface-design.md, refactoring.md)
-- `.ralphrc` — Loop config: rate limits, circuit breaker thresholds, allowed tools
-- `.claude/settings.json` — Claude Code hooks config
-- `.claude/hooks/block-dangerous-git.sh` — Blocks destructive git commands (push, reset --hard, clean -f, etc.)
-- `progress.txt` — Append-only progress log consumed each iteration
-- `evals/` — Evaluation tests and toy projects for testing the loop
+- `engine/prompt.md` — Prompt injected into each iteration (RED-GREEN-REFACTOR workflow, uses `__PLACEHOLDER__` tokens)
+- `engine/snapshot.sh` — Generates `codebase-snapshot.md` between iterations (supports typescript, python, generic parsers)
+
+### Configuration
+
+- `presets/` — Stack presets (bun-typescript, node-typescript, python, generic)
+- `templates/CLAUDE-ralph.md` — CLAUDE-ralph.md template with `__PLACEHOLDER__` tokens
+- `.claude/skills/prd-review/` — PRD review skill: `/prd-review [plan-name]`
+- `skills/tdd/` — TDD methodology reference files
+
+### Project Layout (`.ralph/` in target projects)
+
+```
+.ralph/
+├── config.sh              # Stack config (from preset)
+├── engine/                # ralph.sh, prompt.md, snapshot.sh
+├── skills/tdd/            # TDD methodology files
+├── specs/                 # architecture.md, prd-<plan>.json
+├── hooks/                 # block-dangerous-git.sh
+├── progress.txt           # Append-only progress log
+├── CLAUDE-ralph.md        # Ralph instructions for Claude
+└── logs/                  # Iteration logs
+```
+
+### Evals
+
+- `evals/loop-tests/` — Mock-claude engine tests (circuit breakers, exit detection, rate limiting, hook blocking)
+- `evals/smoke-test.sh` — End-to-end scaffold + build test
+- `evals/test-ralph-init.sh` — Init command tests (stack detection, merging, idempotency)
+- `evals/test-brownfield-loop.sh` — Engine tests with `.ralph/` layout
 
 ## Commands
 
@@ -29,19 +55,31 @@ Project template for Ralph — an autonomous TDD development loop powered by Cla
 
 ## How It Works
 
-1. User creates a project: `./create-project.sh ~/projects/my-app my-prd.json [plan-name]`
-2. User reviews PRD: `/prd-review [plan-name]`
-3. User starts autonomous loop: `./engine/ralph.sh 20 [plan-name]`
-4. Each iteration: fresh Claude process reads PRD + progress, picks highest-priority incomplete story, does RED-GREEN-REFACTOR, commits, appends to progress.txt
-5. Circuit breakers halt on: no progress (3 loops), same error (5 loops), rate limits
+### Greenfield (new Bun/TS project)
+
+1. `./create-project.sh ~/projects/my-app my-prd.json [plan-name]`
+2. `/prd-review [plan-name]` (in Claude Code)
+3. `.ralph/engine/ralph.sh 20 [plan-name]`
+
+### Brownfield (existing project, any stack)
+
+1. `ralph init [--stack <preset>] [target-dir]`
+2. Copy PRD to `.ralph/specs/prd-<plan>.json`, set `RALPH_PLAN` in `.ralph/config.sh`
+3. `/prd-review [plan-name]` (in Claude Code)
+4. `.ralph/engine/ralph.sh 20 [plan-name]` (or `ralph run 20 [plan-name]`)
+
+### Engine Parameterisation
+
+The engine uses config variables with defaults matching the original Bun/TS behaviour:
+
+- `ENGINE_DIR`, `SPECS_DIR`, `SKILLS_DIR`, `PROGRESS_FILE`, `LOG_DIR` — directory layout
+- `TEST_CMD`, `TYPECHECK_CMD`, `LINT_CMD` — verification commands
+- `SNAPSHOT_SOURCE_DIR`, `SNAPSHOT_FILE_EXTENSIONS`, `SNAPSHOT_PARSER` — codebase snapshot config
+- `TEST_COUNT_REGEX` — pattern to extract test count from output
 
 ## Agent Usage
 
 Use sub-agents liberally for independent tasks to maximise time efficiency and preserve context window.
-
-## Codebase Patterns
-
-(Patterns will be added here by Ralph during iterations)
 
 ## Testing Strategy
 
@@ -50,20 +88,8 @@ TDD is mandatory. RED-GREEN-REFACTOR. Vertical slices only.
 - Tests verify behaviour through public interfaces
 - Mock only at system boundaries (external APIs, databases, time, file system)
 - Never mock your own code
-- One test, one implementation, repeat - no horizontal slicing
+- One test, one implementation, repeat — no horizontal slicing
 - See `skills/tdd/SKILL.md` for complete methodology
-
-## Ralph Loop
-
-This project is developed autonomously via `engine/ralph.sh`.
-
-- Each iteration reads the active PRD from `specs/prd-<plan>.json`
-- Plan selection: CLI arg > `RALPH_PLAN` in `.ralphrc`
-- Progress is tracked in `progress.txt`
-- Commits use `RALPH:` prefix
-- Protected files: `engine/`, `specs/`, `skills/`, `.ralphrc`, `CLAUDE.md`, `progress.txt`
-- Run with: `./engine/ralph.sh 20 [plan-name]`
-- If `specs/architecture.md` exists and has been filled in, read it at the start of each iteration. Check your planned changes against the dependency rules and hard constraints.
 
 ## Progress File Hygiene
 

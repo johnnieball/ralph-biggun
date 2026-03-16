@@ -1,9 +1,6 @@
 #!/bin/bash
 set -e
 
-# Ensure bun is on PATH (installed to ~/.bun by default)
-export PATH="$HOME/.bun/bin:$PATH"
-
 # Architecture note: FRESH CONTEXT PER ITERATION
 # ================================================
 # Each iteration spawns a fresh Claude process via --print mode.
@@ -18,11 +15,15 @@ export PATH="$HOME/.bun/bin:$PATH"
 # ================================================
 
 # Source configuration
-if [ -f ".ralphrc" ]; then
-  source .ralphrc
+RALPH_CONFIG="${RALPH_CONFIG:-.ralphrc}"
+if [ ! -f "$RALPH_CONFIG" ] && [ -f ".ralph/config.sh" ]; then
+  RALPH_CONFIG=".ralph/config.sh"
+fi
+if [ -f "$RALPH_CONFIG" ]; then
+  source "$RALPH_CONFIG"
 fi
 
-# Defaults (overridden by .ralphrc)
+# Defaults (overridden by config)
 MAX_CALLS_PER_HOUR=${MAX_CALLS_PER_HOUR:-60}
 MAX_ITERATIONS=${MAX_ITERATIONS:-20}
 CB_NO_PROGRESS_THRESHOLD=${CB_NO_PROGRESS_THRESHOLD:-3}
@@ -31,6 +32,30 @@ RALPH_MAX_RETRIES=${RALPH_MAX_RETRIES:-3}
 RALPH_RETRY_BACKOFF=${RALPH_RETRY_BACKOFF:-30}
 RATE_LIMIT_WAIT=${RATE_LIMIT_WAIT:-120}
 RATE_LIMIT_MAX_RETRIES=${RATE_LIMIT_MAX_RETRIES:-5}
+
+# Directory and command config (overridden by config)
+ENGINE_DIR="${ENGINE_DIR:-engine}"
+SPECS_DIR="${SPECS_DIR:-specs}"
+SKILLS_DIR="${SKILLS_DIR:-skills}"
+PROGRESS_FILE="${PROGRESS_FILE:-progress.txt}"
+LOG_DIR="${LOG_DIR:-logs}"
+TEST_CMD="${TEST_CMD:-bun run test}"
+TYPECHECK_CMD="${TYPECHECK_CMD:-bun run typecheck}"
+LINT_CMD="${LINT_CMD:-bun run lint}"
+EXTRA_PATH="${EXTRA_PATH:-$HOME/.bun/bin}"
+SNAPSHOT_SOURCE_DIR="${SNAPSHOT_SOURCE_DIR:-src}"
+SNAPSHOT_FILE_EXTENSIONS="${SNAPSHOT_FILE_EXTENSIONS:-ts,tsx,js,jsx}"
+SNAPSHOT_TEST_PATTERNS="${SNAPSHOT_TEST_PATTERNS:-*.test.*,*.spec.*}"
+SNAPSHOT_PARSER="${SNAPSHOT_PARSER:-typescript}"
+TEST_COUNT_REGEX="${TEST_COUNT_REGEX:-Tests[[:space:]]+[0-9]+ passed}"
+
+# Add tool runtime to PATH (skip if EXTRA_PATH is empty)
+if [ -n "$EXTRA_PATH" ]; then
+  export PATH="$EXTRA_PATH:$PATH"
+fi
+
+# Export snapshot config for snapshot.sh subprocess
+export SNAPSHOT_SOURCE_DIR SNAPSHOT_FILE_EXTENSIONS SNAPSHOT_TEST_PATTERNS SNAPSHOT_PARSER
 
 # Arguments: [iterations] [plan-name]
 if [ -n "$1" ]; then
@@ -47,21 +72,21 @@ fi
 
 # Resolve PRD path: CLI arg > RALPH_PLAN config
 if [ -z "$RALPH_PLAN" ]; then
-  echo "ERROR: No plan selected. Set RALPH_PLAN in .ralphrc or pass as second arg."
+  echo "ERROR: No plan selected. Set RALPH_PLAN in $RALPH_CONFIG or pass as second arg."
   echo "  Usage: $0 [iterations] <plan-name>"
   echo "Available plans:"
-  for f in specs/prd-*.json; do
+  for f in $SPECS_DIR/prd-*.json; do
     [ -f "$f" ] && echo "  - $(basename "$f" | sed 's/^prd-//;s/\.json$//')"
   done
   exit 1
 fi
 
-PRD_PATH="specs/prd-${RALPH_PLAN}.json"
+PRD_PATH="$SPECS_DIR/prd-${RALPH_PLAN}.json"
 
 if [ ! -f "$PRD_PATH" ]; then
   echo "ERROR: PRD not found at $PRD_PATH"
   echo "Available plans:"
-  for f in specs/prd-*.json; do
+  for f in $SPECS_DIR/prd-*.json; do
     [ -f "$f" ] && echo "  - $(basename "$f" | sed 's/^prd-//;s/\.json$//')"
   done
   exit 1
@@ -70,7 +95,6 @@ fi
 echo "Using PRD: $PRD_PATH"
 
 # Automatic log file — mirror all output to timestamped log
-LOG_DIR="logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/ralph-$(date +%Y%m%d-%H%M%S).log"
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -239,8 +263,17 @@ for (( i=1; i<=MAX_ITERATIONS; i++ )); do
     # Gather RALPH commit history
     ralph_commits=$(git log --grep="RALPH" -n 10 --format="%H%n%ad%n%B---" --date=short 2>/dev/null || echo "No RALPH commits found")
 
-    # Build prompt (inject PRD path)
-    prompt="$(sed "s|__PRD_PATH__|$PRD_PATH|g" engine/prompt.md)
+    # Build prompt (inject config placeholders)
+    prompt="$(sed \
+      -e "s|__PRD_PATH__|$PRD_PATH|g" \
+      -e "s|__TEST_CMD__|$TEST_CMD|g" \
+      -e "s|__TYPECHECK_CMD__|$TYPECHECK_CMD|g" \
+      -e "s|__LINT_CMD__|$LINT_CMD|g" \
+      -e "s|__SPECS_DIR__|$SPECS_DIR|g" \
+      -e "s|__SKILLS_DIR__|$SKILLS_DIR|g" \
+      -e "s|__PROGRESS_FILE__|$PROGRESS_FILE|g" \
+      -e "s|__ENGINE_DIR__|$ENGINE_DIR|g" \
+      "$ENGINE_DIR/prompt.md")
 
 Previous RALPH commits:
 $ralph_commits"
@@ -327,8 +360,8 @@ $ralph_commits"
   completed_iterations=$i
   result=$(jq -r "$final_result" "$tmpfile")
 
-  # Capture test count from iteration output (vitest format: "Tests  N passed")
-  iter_test_count=$(grep -oE 'Tests[[:space:]]+[0-9]+ passed' "$tmpfile" | tail -1 | grep -oE '[0-9]+' | head -1 || echo "")
+  # Capture test count from iteration output
+  iter_test_count=$(grep -oE "$TEST_COUNT_REGEX" "$tmpfile" | tail -1 | grep -oE '[0-9]+' | head -1 || echo "")
   if [ -n "$iter_test_count" ]; then
     last_test_count="$iter_test_count"
   fi
@@ -458,8 +491,8 @@ $ralph_commits"
   echo "$summary_line"
 
   # Generate codebase snapshot between iterations
-  if [ -x "engine/snapshot.sh" ]; then
-    engine/snapshot.sh 2>/dev/null || true
+  if [ -x "$ENGINE_DIR/snapshot.sh" ]; then
+    "$ENGINE_DIR/snapshot.sh" 2>/dev/null || true
   fi
 done
 

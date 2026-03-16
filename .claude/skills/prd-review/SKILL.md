@@ -10,11 +10,11 @@ You are reviewing a Ralph PRD (`specs/prd-<plan>.json`) to make it robust before
 
 ## Find the PRD
 
-Determine which PRD to review:
+Determine which PRD to review. Check both `.ralph/` (new layout) and root (legacy layout):
 
-1. If `$ARGUMENTS` is provided, use `specs/prd-$ARGUMENTS.json`
-2. Otherwise, read `.ralphrc` and use the `RALPH_PLAN` value
-3. If neither exists, list available PRDs in `specs/` and ask
+1. If `$ARGUMENTS` is provided, try `.ralph/specs/prd-$ARGUMENTS.json` first, then `specs/prd-$ARGUMENTS.json`
+2. Otherwise, read `.ralph/config.sh` (or `.ralphrc`) and use the `RALPH_PLAN` value
+3. If neither exists, list available PRDs in `.ralph/specs/` and `specs/` and ask
 
 Read the PRD JSON file.
 
@@ -67,5 +67,5 @@ Human review needed ([count]):
 Verdict: READY / NEEDS_HUMAN_INPUT
 ```
 
-If verdict is READY, the user can proceed to `./engine/ralph.sh`.
+If verdict is READY, the user can proceed to `.ralph/engine/ralph.sh` (or `engine/ralph.sh` for legacy layout).
 If verdict is NEEDS_HUMAN_INPUT, list the items clearly so the user can address them and re-run `/prd-review`.

@@ -50,7 +50,12 @@ setup_temp_repo() {
   cp "$REPO_ROOT/engine/ralph.sh" engine/
   cp "$REPO_ROOT/engine/prompt.md" engine/
 
+  # Provide RALPH_PLAN and a dummy PRD
+  mkdir -p specs
+  echo '{"userStories":[]}' > specs/prd-test.json
+
   cat > .ralphrc << 'EOF'
+RALPH_PLAN=test
 MAX_CALLS_PER_HOUR=100
 MAX_ITERATIONS=10
 CB_NO_PROGRESS_THRESHOLD=5

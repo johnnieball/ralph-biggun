@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-# create-project.sh — Create a new Ralph project from the template
+# create-project.sh — Create a new greenfield Ralph project (Bun + TypeScript)
 # Usage: ./create-project.sh <target-path> [prd.json] [plan-name]
 #
-# PRD is placed at specs/prd-<plan-name>.json and RALPH_PLAN is set in .ralphrc.
+# PRD is placed at .ralph/specs/prd-<plan-name>.json and RALPH_PLAN is set in .ralph/config.sh.
 # If plan-name is omitted, the project name is used as the plan name.
 #
 # Examples:
@@ -45,45 +45,6 @@ echo "Creating $PROJECT_NAME at $TARGET..."
 # Create target directory
 mkdir -p "$TARGET"
 
-# --- Copy template files ---
-
-# Engine (Ralph machinery)
-mkdir -p "$TARGET/engine"
-for f in ralph.sh prompt.md snapshot.sh; do
-  [ -f "$TEMPLATE_DIR/engine/$f" ] && cp "$TEMPLATE_DIR/engine/$f" "$TARGET/engine/"
-done
-
-# Specs (architecture template)
-mkdir -p "$TARGET/specs"
-[ -f "$TEMPLATE_DIR/specs/architecture.md" ] && cp "$TEMPLATE_DIR/specs/architecture.md" "$TARGET/specs/"
-
-# Skills
-cp -R "$TEMPLATE_DIR/skills" "$TARGET/skills"
-
-# Project config
-cp "$TEMPLATE_DIR/CLAUDE.md" "$TARGET/"
-cp "$TEMPLATE_DIR/.gitignore" "$TARGET/"
-cp "$TEMPLATE_DIR/.ralphrc" "$TARGET/"
-
-# Build tooling
-cp "$TEMPLATE_DIR/package.json" "$TARGET/"
-cp "$TEMPLATE_DIR/tsconfig.json" "$TARGET/"
-cp "$TEMPLATE_DIR/vitest.config.ts" "$TARGET/"
-cp "$TEMPLATE_DIR/.oxlintrc.json" "$TARGET/"
-cp "$TEMPLATE_DIR/.prettierrc" "$TARGET/"
-cp "$TEMPLATE_DIR/.lintstagedrc" "$TARGET/"
-
-# Claude Code skills
-mkdir -p "$TARGET/.claude/skills"
-cp -R "$TEMPLATE_DIR/.claude/skills/"* "$TARGET/.claude/skills/" 2>/dev/null || true
-
-# Claude Code hooks
-mkdir -p "$TARGET/.claude/hooks"
-[ -f "$TEMPLATE_DIR/.claude/settings.json" ] && cp "$TEMPLATE_DIR/.claude/settings.json" "$TARGET/.claude/"
-[ -f "$TEMPLATE_DIR/.claude/hooks/block-dangerous-git.sh" ] && cp "$TEMPLATE_DIR/.claude/hooks/block-dangerous-git.sh" "$TARGET/.claude/hooks/"
-
-# --- Set up the new project ---
-
 # Portable in-place sed (macOS requires '' as separate arg)
 portable_sed() {
   if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -93,35 +54,17 @@ portable_sed() {
   fi
 }
 
+# --- Copy build tooling (Bun/TS scaffolding) ---
+cp "$TEMPLATE_DIR/package.json" "$TARGET/"
+cp "$TEMPLATE_DIR/tsconfig.json" "$TARGET/"
+cp "$TEMPLATE_DIR/vitest.config.ts" "$TARGET/"
+cp "$TEMPLATE_DIR/.oxlintrc.json" "$TARGET/"
+cp "$TEMPLATE_DIR/.prettierrc" "$TARGET/"
+cp "$TEMPLATE_DIR/.lintstagedrc" "$TARGET/"
+cp "$TEMPLATE_DIR/.gitignore" "$TARGET/"
+
 # Replace placeholders with project name
 portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" "$TARGET/package.json"
-portable_sed "s/\[Project Name\]/$PROJECT_NAME/g" "$TARGET/CLAUDE.md"
-portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" "$TARGET/specs/architecture.md"
-
-# Copy user's PRD if provided
-if [ -n "$PRD_SOURCE" ]; then
-  # Default plan name to project name if not specified
-  PLAN_NAME="${PLAN_NAME:-$PROJECT_NAME}"
-  cp "$PRD_SOURCE" "$TARGET/specs/prd-${PLAN_NAME}.json"
-  # Set RALPH_PLAN in .ralphrc
-  portable_sed "s/^RALPH_PLAN=$/RALPH_PLAN=$PLAN_NAME/" "$TARGET/.ralphrc"
-fi
-
-# Create empty progress.txt
-cat > "$TARGET/progress.txt" << 'EOF'
-# Ralph Progress Log
-
-## Codebase Patterns
-(Patterns will be added here by Ralph as it discovers reusable conventions)
-
-## Technical Debt
-(refactoring needs noted during the build - address when capacity allows)
-
----
-
-Started: (date will be filled by first iteration)
----
-EOF
 
 # Create starter src file
 mkdir -p "$TARGET/src"
@@ -129,12 +72,43 @@ cat > "$TARGET/src/index.ts" << 'EOF'
 export {};
 EOF
 
-# Set permissions
-chmod +x "$TARGET/engine/ralph.sh"
-[ -f "$TARGET/engine/snapshot.sh" ] && chmod +x "$TARGET/engine/snapshot.sh"
-[ -f "$TARGET/.claude/hooks/block-dangerous-git.sh" ] && chmod +x "$TARGET/.claude/hooks/block-dangerous-git.sh"
+# --- Initialise Ralph via init.sh ---
+# Create a bun.lock marker so init detects bun-typescript stack
+touch "$TARGET/bun.lock"
+"$TEMPLATE_DIR/commands/init.sh" --stack bun-typescript "$TARGET"
 
-# Initialise git (must happen before bun install so husky's prepare script works)
+# --- Greenfield-specific: write project CLAUDE.md (init already added directive) ---
+cat > "$TARGET/CLAUDE.md" << CLAUDEEOF
+# $PROJECT_NAME
+
+## Commands
+
+- \`bun run dev\` — watch mode (\`bun run --watch src/index.ts\`)
+- \`bun run test\` — run tests (Vitest)
+- \`bun run typecheck\` — TypeScript type checking
+- \`bun run lint\` — linting (oxlint)
+
+## Codebase Patterns
+
+(Patterns will be added here by Ralph during iterations)
+
+<!-- Ralph --> Read .ralph/CLAUDE-ralph.md for autonomous development loop instructions.
+CLAUDEEOF
+
+# Replace architecture.md placeholder
+if [ -f "$TARGET/.ralph/specs/architecture.md" ]; then
+  portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" "$TARGET/.ralph/specs/architecture.md"
+fi
+
+# --- PRD handling ---
+if [ -n "$PRD_SOURCE" ]; then
+  PLAN_NAME="${PLAN_NAME:-$PROJECT_NAME}"
+  cp "$PRD_SOURCE" "$TARGET/.ralph/specs/prd-${PLAN_NAME}.json"
+  # Set RALPH_PLAN in config.sh
+  portable_sed "s/^RALPH_PLAN=$/RALPH_PLAN=$PLAN_NAME/" "$TARGET/.ralph/config.sh"
+fi
+
+# --- Initialise git (must happen before bun install so husky's prepare script works) ---
 cd "$TARGET"
 git init -q
 
@@ -160,11 +134,11 @@ echo "Next steps:"
 if [ -n "$PRD_SOURCE" ]; then
   echo "  1. cd $TARGET"
   echo "  2. /prd-review $PLAN_NAME      (in Claude Code)"
-  echo "  3. ./engine/ralph.sh 20 $PLAN_NAME"
+  echo "  3. .ralph/engine/ralph.sh 20 $PLAN_NAME"
 else
-  echo "  1. Add your PRD:  cp your-prd.json $TARGET/specs/prd-my-plan.json"
-  echo "  2. Set RALPH_PLAN=my-plan in $TARGET/.ralphrc"
+  echo "  1. Add your PRD:  cp your-prd.json $TARGET/.ralph/specs/prd-my-plan.json"
+  echo "  2. Set RALPH_PLAN=my-plan in $TARGET/.ralph/config.sh"
   echo "  3. cd $TARGET"
   echo "  4. /prd-review my-plan          (in Claude Code)"
-  echo "  5. ./engine/ralph.sh 20 my-plan"
+  echo "  5. .ralph/engine/ralph.sh 20 my-plan"
 fi
