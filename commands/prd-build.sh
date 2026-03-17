@@ -122,7 +122,7 @@ for (( i=1; i<=MAX_ITERATIONS; i++ )); do
     > "$tmpfile"
 
     set +e
-    claude --print --dangerously-skip-permissions --output-format stream-json \
+    claude --print --dangerously-skip-permissions --output-format stream-json --verbose \
       --allowedTools "Read,Write,Edit" \
       -p "$prompt" \
       | grep --line-buffered '^{' \

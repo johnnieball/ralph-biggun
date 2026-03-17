@@ -36,6 +36,7 @@ run_suite "Ralph Init Tests"    "$SCRIPT_DIR/test-ralph-init.sh"
 run_suite "Brownfield Loop"     "$SCRIPT_DIR/test-brownfield-loop.sh"
 run_suite "Ralph CLI Tests"     "$SCRIPT_DIR/test-ralph-cli.sh"
 run_suite "Run.sh Tests"        "$SCRIPT_DIR/test-run-sh.sh"
+run_suite "PRD Build Tests"     "$SCRIPT_DIR/test-prd-build.sh"
 
 # Summary
 echo ""
