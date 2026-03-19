@@ -90,12 +90,16 @@ stream_progress='
 
 detect_rate_limit() {
   local file="$1"
-  # Only flag rate limits when there's NO valid assistant content — avoids
-  # false positives from Claude's response text containing "429" etc.
-  if grep -q '"type":"result"' "$file" 2>/dev/null; then
-    return 1
+  # Check 1: rate_limit_event with non-"allowed" status (authoritative API signal)
+  if jq -e 'select(.type == "rate_limit_event" and .rate_limit_info.status != "allowed")' "$file" >/dev/null 2>&1; then
+    return 0
   fi
-  grep -qiE '(hit your limit|rate.?limit|429|quota.?exceeded|too many requests|overloaded|resource_exhausted|try again later)' "$file" 2>/dev/null
+  # Check 2: error result mentioning rate limits (catch-all for API errors)
+  if jq -r 'select(.type == "result" and .is_error == true) | .result // empty' "$file" 2>/dev/null \
+     | grep -qiE '(hit your limit|rate.?limit|429|quota.?exceeded|too many requests|overloaded|resource_exhausted|try again later)'; then
+    return 0
+  fi
+  return 1
 }
 
 fmt_time() {
