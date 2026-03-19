@@ -136,6 +136,29 @@ PRDJSON
     emit_result "PRD updated."
     ;;
 
+  prd-needs-human-no-converge)
+    # Always modify PRD + emit human items (tests max-iterations exit with NEEDS_HUMAN).
+    cat > "$MOCK_PRD_PATH" << PRDJSON
+{"project":"test","branchName":"feature/test","description":"Test project","techStack":["bun"],"environment":{"runtime":"bun","testFramework":"vitest","notes":""},"userStories":[{"id":"US-001","title":"Setup $(date +%s%N)","description":"Project setup","acceptanceCriteria":["Project initialises"],"priority":"high","passes":false,"dependsOn":[],"notes":""}]}
+PRDJSON
+    emit_assistant "Fixed issues but human decisions remain.\n\n---HUMAN_DECISION_ITEMS---\n- caching: Redis or in-memory LRU?\n---END_HUMAN_DECISION_ITEMS---\n\n---PRD_BUILD_STATUS---\nITERATION: 1\nMECHANICAL_FIXES: 1\nHUMAN_ITEMS: 1\nVERDICT: NEEDS_HUMAN\n---END_PRD_BUILD_STATUS---"
+    emit_result "PRD updated."
+    ;;
+
+  prd-needs-human)
+    # Create PRD on iteration 1, then converge with human items on iteration 2+.
+    if [ ! -f "$MOCK_PRD_PATH" ]; then
+      cat > "$MOCK_PRD_PATH" << 'PRDJSON'
+{"project":"test","branchName":"feature/test","description":"Test project","techStack":["bun","typescript"],"environment":{"runtime":"bun","testFramework":"vitest","notes":""},"userStories":[{"id":"US-001","title":"Setup","description":"Project setup","acceptanceCriteria":["Project initialises"],"priority":"high","passes":false,"dependsOn":[],"notes":""}]}
+PRDJSON
+      emit_assistant "Generated PRD.\n\n---HUMAN_DECISION_ITEMS---\n- auth: should sessions use JWT or server-side cookies?\n- search: full-text search via SQLite FTS5 or external service like Algolia?\n---END_HUMAN_DECISION_ITEMS---\n\n---PRD_BUILD_STATUS---\nITERATION: 1\nMECHANICAL_FIXES: 0\nHUMAN_ITEMS: 2\nVERDICT: NEEDS_HUMAN\n---END_PRD_BUILD_STATUS---"
+      emit_result "PRD generated with human items."
+    else
+      emit_assistant "No mechanical issues.\n\n---HUMAN_DECISION_ITEMS---\n- auth: should sessions use JWT or server-side cookies?\n- search: full-text search via SQLite FTS5 or external service like Algolia?\n---END_HUMAN_DECISION_ITEMS---\n\n---PRD_BUILD_STATUS---\nITERATION: 2\nMECHANICAL_FIXES: 0\nHUMAN_ITEMS: 2\nVERDICT: NEEDS_HUMAN\n---END_PRD_BUILD_STATUS---"
+      emit_result "PRD unchanged."
+    fi
+    ;;
+
   prd-no-write)
     # Never create the PRD file (tests the missing-file guard).
     emit_assistant "I could not generate the PRD."

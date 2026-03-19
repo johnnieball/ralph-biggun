@@ -76,10 +76,25 @@ echo "Log: $LOG_FILE"
 echo ""
 
 # jq filters for stream-json output
-stream_text='select(.type == "assistant").message.content[]? | select(.type == "text").text // empty | gsub("\n"; "\r\n") | . + "\r\n\n"'
+# Show assistant text + tool use activity so the user sees progress
+stream_progress='
+  if .type == "assistant" then
+    (.message.content[]? |
+      if .type == "text" then
+        .text // empty | gsub("\n"; "\r\n") | . + "\r\n\n"
+      elif .type == "tool_use" then
+        "  → " + .name + ": " + (.input.file_path // .input.command // "" | split("/") | last) + "\r\n"
+      else empty end)
+  else empty end
+'
 
 detect_rate_limit() {
   local file="$1"
+  # Only flag rate limits when there's NO valid assistant content — avoids
+  # false positives from Claude's response text containing "429" etc.
+  if grep -q '"type":"result"' "$file" 2>/dev/null; then
+    return 1
+  fi
   grep -qiE '(hit your limit|rate.?limit|429|quota.?exceeded|too many requests|overloaded|resource_exhausted|try again later)' "$file" 2>/dev/null
 }
 
@@ -102,6 +117,14 @@ loop_start=$(date +%s)
 
 for (( i=1; i<=MAX_ITERATIONS; i++ )); do
   iter_start=$(date +%s)
+
+  # Progress banner
+  if [ "$i" -eq 1 ] && [ ! -f "$PRD_PATH" ]; then
+    echo "━━━ Iteration $i/$MAX_ITERATIONS — Generating PRD from spec ━━━"
+  else
+    echo "━━━ Iteration $i/$MAX_ITERATIONS — Reviewing and refining PRD ━━━"
+  fi
+  echo ""
 
   # Build prompt with placeholder injection
   prompt="$(sed \
@@ -127,7 +150,7 @@ for (( i=1; i<=MAX_ITERATIONS; i++ )); do
       -p "$prompt" \
       | grep --line-buffered '^{' \
       | tee "$tmpfile" \
-      | jq --unbuffered -rj "$stream_text"
+      | jq --unbuffered -rj "$stream_progress"
     set -e
 
     if [ -s "$tmpfile" ]; then
@@ -194,21 +217,97 @@ for (( i=1; i<=MAX_ITERATIONS; i++ )); do
   human="${human:-?}"
   verdict="${verdict:-?}"
 
+  # Extract human decision items from structured block
+  # In stream-json output, newlines are JSON-encoded as \n (literal backslash-n)
+  human_items=$(grep -o 'HUMAN_DECISION_ITEMS---.*---END_HUMAN_DECISION_ITEMS' "$tmpfile" 2>/dev/null \
+    | sed 's/.*HUMAN_DECISION_ITEMS---//; s/---END_HUMAN_DECISION_ITEMS.*//' \
+    | sed 's/\\n/\'$'\n''/g' \
+    | grep '^- ' \
+    || true)
+
+  # Count stories in the PRD
+  story_count=$(jq '.userStories | length' "$PRD_PATH" 2>/dev/null || echo "?")
+
   echo ""
-  echo "[$i/$MAX_ITERATIONS] ${fixes} fixes | ${human} human items | verdict: ${verdict} | $(fmt_time $iter_elapsed) | PRD: $PRD_PATH"
+  echo "[$i/$MAX_ITERATIONS] ${fixes} fixes | ${human} human items | ${story_count} stories | verdict: ${verdict} | $(fmt_time $iter_elapsed)"
 
   if [ "$current_sha" = "$last_sha" ]; then
+    total_elapsed=$(( $(date +%s) - loop_start ))
     echo ""
-    echo "PRD converged after $i iterations (no changes detected)."
-    echo "Output: $PRD_PATH"
+    echo "═══════════════════════════════════════════════════"
+    if [ "$verdict" = "NEEDS_HUMAN" ]; then
+      echo "  PRD BUILD COMPLETE — NEEDS HUMAN INPUT"
+    else
+      echo "  PRD BUILD COMPLETE"
+    fi
+    echo "═══════════════════════════════════════════════════"
+    echo "Converged after:  $i iterations ($(fmt_time $total_elapsed))"
+    echo "Stories:          $story_count"
+    echo "Human items:      $human"
+    echo "Verdict:          $verdict"
+    echo "Output:           $PRD_PATH"
+    echo "Log:              $LOG_FILE"
+    echo "═══════════════════════════════════════════════════"
+
+    if [ -n "$human_items" ]; then
+      echo ""
+      echo "  Decisions needed:"
+      echo ""
+      item_num=0
+      echo "$human_items" | while IFS= read -r line; do
+        item_num=$(( item_num + 1 ))
+        echo "  ${item_num}. ${line#- }"
+      done
+      echo ""
+      echo "  To resolve: add your decisions to the spec file,"
+      echo "  then re-run:"
+      echo ""
+      echo "    ralph prd-build $SPEC_FILE $PLAN_NAME"
+      echo ""
+      echo "═══════════════════════════════════════════════════"
+    else
+      echo ""
+      echo "Next: /prd-review ${PLAN_NAME}  (in Claude Code)"
+    fi
     exit 0
   fi
 
   last_sha="$current_sha"
 done
 
+total_elapsed=$(( $(date +%s) - loop_start ))
 echo ""
-echo "PRD build reached max iterations ($MAX_ITERATIONS)."
-echo "Output: $PRD_PATH"
-echo "Review the PRD and re-run if further refinement is needed."
+echo "═══════════════════════════════════════════════════"
+if [ "$verdict" = "NEEDS_HUMAN" ]; then
+  echo "  PRD BUILD — MAX ITERATIONS (NEEDS HUMAN INPUT)"
+else
+  echo "  PRD BUILD — MAX ITERATIONS"
+fi
+echo "═══════════════════════════════════════════════════"
+echo "Iterations:       $MAX_ITERATIONS ($(fmt_time $total_elapsed))"
+echo "Stories:          $(jq '.userStories | length' "$PRD_PATH" 2>/dev/null || echo "?")"
+echo "Human items:      $human"
+echo "Verdict:          $verdict"
+echo "Output:           $PRD_PATH"
+echo "Log:              $LOG_FILE"
+echo "═══════════════════════════════════════════════════"
+
+if [ -n "$human_items" ]; then
+  echo ""
+  echo "  Decisions needed:"
+  echo ""
+  item_num=0
+  echo "$human_items" | while IFS= read -r line; do
+    item_num=$(( item_num + 1 ))
+    echo "  ${item_num}. ${line#- }"
+  done
+  echo ""
+  echo "  To resolve: add your decisions to the spec file,"
+  echo "  then re-run:"
+  echo ""
+  echo "    ralph prd-build $SPEC_FILE $PLAN_NAME"
+else
+  echo ""
+  echo "PRD may need further review. Re-run or use /prd-review ${PLAN_NAME}"
+fi
 exit 0

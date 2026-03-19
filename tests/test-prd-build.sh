@@ -83,7 +83,7 @@ code=$?
 set -e
 
 assert_exit_code "exits with code 0" "0" "$code"
-assert_output_contains "reports convergence" "$output" "PRD converged"
+assert_output_contains "reports convergence" "$output" "PRD BUILD COMPLETE"
 assert_true "PRD file was created" test -f "$TMPDIR/specs/prd-spec.json"
 # Verify it's valid JSON
 assert_true "PRD is valid JSON" jq empty "$TMPDIR/specs/prd-spec.json"
@@ -102,7 +102,7 @@ code=$?
 set -e
 
 assert_exit_code "exits with code 0" "0" "$code"
-assert_output_contains "reports max iterations" "$output" "reached max iterations (2)"
+assert_output_contains "reports max iterations" "$output" "MAX ITERATIONS"
 assert_true "PRD file exists" test -f "$TMPDIR/specs/prd-spec.json"
 
 # --- Test 5: PRD not created guard ---
@@ -175,5 +175,61 @@ assert_output_contains "summary has iteration counter" "$output" "[1/1]"
 assert_output_contains "summary has fixes count" "$output" "fixes"
 assert_output_contains "summary has human items" "$output" "human items"
 assert_output_contains "summary has verdict" "$output" "verdict:"
+
+# --- Test 9: NEEDS_HUMAN shows decisions and course of action ---
+echo ""
+echo "Test: NEEDS_HUMAN shows decisions and next steps"
+
+setup_temp_project
+export MOCK_SCENARIO=prd-needs-human
+export MOCK_PRD_PATH="$TMPDIR/specs/prd-spec.json"
+
+set +e
+output=$("$REPO_ROOT/commands/prd-build.sh" "$TMPDIR/spec.md" 2>&1)
+code=$?
+set -e
+
+assert_exit_code "exits with code 0" "0" "$code"
+assert_output_contains "banner says NEEDS HUMAN INPUT" "$output" "NEEDS HUMAN INPUT"
+assert_output_contains "shows Decisions needed header" "$output" "Decisions needed"
+assert_output_contains "shows first human item" "$output" "auth: should sessions use JWT"
+assert_output_contains "shows second human item" "$output" "search: full-text search"
+assert_output_contains "tells user to update spec" "$output" "add your decisions to the spec file"
+assert_output_contains "shows re-run command" "$output" "ralph prd-build"
+# Should NOT show the /prd-review next step
+if echo "$output" | grep -q '/prd-review'; then
+  echo "  FAIL: should not show /prd-review when NEEDS_HUMAN"
+  FAIL=$(( FAIL + 1 ))
+else
+  echo "  PASS: does not show /prd-review when NEEDS_HUMAN"
+  PASS=$(( PASS + 1 ))
+fi
+
+# --- Test 10: NEEDS_HUMAN via max-iterations exit path ---
+echo ""
+echo "Test: NEEDS_HUMAN at max iterations shows decisions"
+
+setup_temp_project
+export MOCK_SCENARIO=prd-needs-human-no-converge
+export MOCK_PRD_PATH="$TMPDIR/specs/prd-spec.json"
+
+set +e
+output=$("$REPO_ROOT/commands/prd-build.sh" "$TMPDIR/spec.md" spec 2 2>&1)
+code=$?
+set -e
+
+assert_exit_code "exits with code 0" "0" "$code"
+assert_output_contains "banner says MAX ITERATIONS + NEEDS HUMAN" "$output" "NEEDS HUMAN INPUT"
+assert_output_contains "shows Decisions needed header" "$output" "Decisions needed"
+assert_output_contains "shows human item" "$output" "caching: Redis or in-memory LRU"
+assert_output_contains "tells user to update spec" "$output" "add your decisions to the spec file"
+# Should NOT show the generic "may need further review" message
+if echo "$output" | grep -q 'may need further review'; then
+  echo "  FAIL: should not show generic review message when human items exist"
+  FAIL=$(( FAIL + 1 ))
+else
+  echo "  PASS: generic review message suppressed when human items exist"
+  PASS=$(( PASS + 1 ))
+fi
 
 print_summary "PRD Build tests"

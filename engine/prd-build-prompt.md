@@ -64,7 +64,7 @@ Read the existing PRD at `__PRD_PATH__` and review it against these mechanical c
 
 Fix all mechanical issues directly in the PRD JSON.
 
-For human-decision items (architecture choices, scope questions, spike/research stories, business logic ambiguity), mention them in your output text but do NOT block on them — fix what you can and flag the rest.
+For human-decision items (architecture choices, scope questions, spike/research stories, business logic ambiguity), fix what you can and flag the rest using the structured block below.
 
 ## Convergence rule
 
@@ -72,7 +72,20 @@ If you find **no mechanical issues** in the PRD, do NOT modify the file. Leave i
 
 ## Output
 
-After reviewing/generating the PRD, output a status block at the end of your response:
+After reviewing/generating the PRD, output these blocks at the end of your response.
+
+If there are human-decision items, output this block **before** the status block:
+
+```
+---HUMAN_DECISION_ITEMS---
+- <concise description of the decision needed>
+- <another decision needed>
+---END_HUMAN_DECISION_ITEMS---
+```
+
+Each item should be a single line starting with `- `. Be specific about what needs deciding — not just "auth is ambiguous" but "auth: should sessions use JWT or server-side cookies?". Omit this block entirely if there are no human items.
+
+Then output the status block:
 
 ```
 ---PRD_BUILD_STATUS---
