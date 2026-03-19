@@ -11,7 +11,7 @@ Ralph is an autonomous TDD development loop powered by Claude Code. This file co
 ## How It Works
 
 1. User starts autonomous loop: `.ralph/engine/ralph.sh 20 [plan-name]`
-2. Each iteration: fresh Claude process reads PRD + progress, picks highest-priority incomplete story, does RED-GREEN-REFACTOR, commits, appends to progress
+2. Each iteration: fresh Claude process reads task list + progress, picks highest-priority incomplete story, does RED-GREEN-REFACTOR, commits, appends to progress
 3. Circuit breakers halt on: no progress (3 loops), same error (5 loops), rate limits
 
 ## Testing Strategy
@@ -28,7 +28,7 @@ TDD is mandatory. RED-GREEN-REFACTOR. Vertical slices only.
 
 This project is developed autonomously via `.ralph/engine/ralph.sh`.
 
-- Each iteration reads the active PRD from `.ralph/specs/prd-<plan>.json`
+- Each iteration reads the active task list from `.ralph/specs/tasks-<plan>.json`
 - Plan selection: CLI arg > `RALPH_PLAN` in `.ralph/config.sh`
 - Progress is tracked in `.ralph/progress.txt`
 - Commits use `RALPH:` prefix

@@ -1,6 +1,6 @@
 # Architecture - PROJECT_NAME
 
-<!-- Generated from PRD — Ralph will populate this on the first iteration -->
+<!-- Generated from task list — Ralph will populate this on the first iteration -->
 
 ## Modules
 

@@ -2,31 +2,31 @@
 set -e
 
 # create-project.sh — Create a new greenfield Ralph project (Bun + TypeScript)
-# Usage: ./create-project.sh <target-path> [prd.json] [plan-name]
+# Usage: ./create-project.sh <target-path> [tasks.json] [plan-name]
 #
-# PRD is placed at .ralph/specs/prd-<plan-name>.json and RALPH_PLAN is set in .ralph/config.sh.
+# Task list is placed at .ralph/specs/tasks-<plan-name>.json and RALPH_PLAN is set in .ralph/config.sh.
 # If plan-name is omitted, the project name is used as the plan name.
 #
 # Examples:
 #   ./create-project.sh ~/projects/my-app
-#   ./create-project.sh ~/projects/my-app specs/my-app-prd.json
-#   ./create-project.sh ~/projects/my-app specs/my-app-prd.json my-app
+#   ./create-project.sh ~/projects/my-app specs/my-app-tasks.json
+#   ./create-project.sh ~/projects/my-app specs/my-app-tasks.json my-app
 
 TEMPLATE_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$TEMPLATE_DIR/lib/utils.sh"
 
 if [ -z "$1" ]; then
-  echo "Usage: ./create-project.sh <target-path> [prd.json] [plan-name]"
+  echo "Usage: ./create-project.sh <target-path> [tasks.json] [plan-name]"
   echo ""
   echo "Examples:"
   echo "  ./create-project.sh ~/projects/my-app"
-  echo "  ./create-project.sh ~/projects/my-app specs/my-prd.json"
-  echo "  ./create-project.sh ~/projects/my-app specs/my-prd.json my-app"
+  echo "  ./create-project.sh ~/projects/my-app specs/my-tasks.json"
+  echo "  ./create-project.sh ~/projects/my-app specs/my-tasks.json my-app"
   exit 1
 fi
 
 TARGET="$(cd "$(dirname "$1")" 2>/dev/null && pwd)/$(basename "$1")" || TARGET="$1"
-PRD_SOURCE="$2"
+TASKS_SOURCE="$2"
 PLAN_NAME="$3"
 PROJECT_NAME="$(basename "$TARGET")"
 
@@ -36,8 +36,8 @@ if [ -d "$TARGET" ]; then
   exit 1
 fi
 
-if [ -n "$PRD_SOURCE" ] && [ ! -f "$PRD_SOURCE" ]; then
-  echo "ERROR: PRD file not found: $PRD_SOURCE"
+if [ -n "$TASKS_SOURCE" ] && [ ! -f "$TASKS_SOURCE" ]; then
+  echo "ERROR: Task file not found: $TASKS_SOURCE"
   exit 1
 fi
 
@@ -92,10 +92,10 @@ if [ -f "$TARGET/.ralph/specs/architecture.md" ]; then
   portable_sed "s/PROJECT_NAME/$PROJECT_NAME/g" "$TARGET/.ralph/specs/architecture.md"
 fi
 
-# --- PRD handling ---
-if [ -n "$PRD_SOURCE" ]; then
+# --- Task list handling ---
+if [ -n "$TASKS_SOURCE" ]; then
   PLAN_NAME="${PLAN_NAME:-$PROJECT_NAME}"
-  cp "$PRD_SOURCE" "$TARGET/.ralph/specs/prd-${PLAN_NAME}.json"
+  cp "$TASKS_SOURCE" "$TARGET/.ralph/specs/tasks-${PLAN_NAME}.json"
   # Set RALPH_PLAN in config.sh
   portable_sed "s/^RALPH_PLAN=$/RALPH_PLAN=$PLAN_NAME/" "$TARGET/.ralph/config.sh"
 fi
@@ -123,14 +123,14 @@ echo ""
 echo "Created $PROJECT_NAME at $TARGET"
 echo ""
 echo "Next steps:"
-if [ -n "$PRD_SOURCE" ]; then
+if [ -n "$TASKS_SOURCE" ]; then
   echo "  1. cd $TARGET"
-  echo "  2. /prd-review $PLAN_NAME      (in Claude Code)"
+  echo "  2. /task-review $PLAN_NAME      (in Claude Code)"
   echo "  3. .ralph/engine/ralph.sh 20 $PLAN_NAME"
 else
-  echo "  1. Add your PRD:  cp your-prd.json $TARGET/.ralph/specs/prd-my-plan.json"
+  echo "  1. Add your tasks:  cp your-tasks.json $TARGET/.ralph/specs/tasks-my-plan.json"
   echo "  2. Set RALPH_PLAN=my-plan in $TARGET/.ralph/config.sh"
   echo "  3. cd $TARGET"
-  echo "  4. /prd-review my-plan          (in Claude Code)"
+  echo "  4. /task-review my-plan          (in Claude Code)"
   echo "  5. .ralph/engine/ralph.sh 20 my-plan"
 fi

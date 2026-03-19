@@ -6,7 +6,7 @@
 # Commands:
 #   init [--stack <preset>] [target-dir]         — Initialise Ralph in a project
 #   run [iterations] [plan-name]                 — Start the autonomous loop
-#   prd-build <spec-file> [plan-name] [max-iter] — Generate PRD from spec
+#   task-build <spec-file> [plan-name] [max-iter] — Generate task list from spec
 
 RALPH_HOME="$(cd "$(dirname "$0")" && pwd)"
 
@@ -19,9 +19,9 @@ case "${1:-}" in
     shift
     exec "$RALPH_HOME/commands/run.sh" "$@"
     ;;
-  prd-build)
+  task-build)
     shift
-    exec "$RALPH_HOME/commands/prd-build.sh" "$@"
+    exec "$RALPH_HOME/commands/task-build.sh" "$@"
     ;;
   *)
     echo "Usage: ralph <command> [options]"
@@ -29,7 +29,7 @@ case "${1:-}" in
     echo "Commands:"
     echo "  init [--stack <preset>] [dir]              Initialise Ralph in a project"
     echo "  run [iterations] [plan-name]               Start the autonomous loop"
-    echo "  prd-build <spec> [plan-name] [max-iter]    Generate PRD from spec file"
+    echo "  task-build <spec> [plan-name] [max-iter]   Generate task list from spec file"
     echo ""
     echo "Available stack presets:"
     for f in "$RALPH_HOME"/presets/*.sh; do

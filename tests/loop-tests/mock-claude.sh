@@ -110,58 +110,58 @@ case "$SCENARIO" in
     emit_result "<promise>ABORT</promise>"
     ;;
 
-  # --- prd-build scenarios ---
-  # Use MOCK_PRD_PATH env var to know where the PRD file goes.
+  # --- task-build scenarios ---
+  # Use MOCK_TASKS_PATH env var to know where the task file goes.
 
-  prd-converge)
-    # Iteration 1: create PRD. Iteration 2+: leave it unchanged (triggers convergence).
-    if [ ! -f "$MOCK_PRD_PATH" ]; then
-      cat > "$MOCK_PRD_PATH" << 'PRDJSON'
+  task-converge)
+    # Iteration 1: create task list. Iteration 2+: leave it unchanged (triggers convergence).
+    if [ ! -f "$MOCK_TASKS_PATH" ]; then
+      cat > "$MOCK_TASKS_PATH" << 'TASKSJSON'
 {"project":"test","branchName":"feature/test","description":"Test project","techStack":["bun","typescript"],"environment":{"runtime":"bun","testFramework":"vitest","notes":""},"userStories":[{"id":"US-001","title":"Setup","description":"Project setup","acceptanceCriteria":["Project initialises"],"priority":"high","passes":false,"dependsOn":[],"notes":""}]}
-PRDJSON
-      emit_assistant "Generated PRD from spec.\n\n---PRD_BUILD_STATUS---\nITERATION: 1\nMECHANICAL_FIXES: 0\nHUMAN_ITEMS: 0\nVERDICT: READY\n---END_PRD_BUILD_STATUS---"
-      emit_result "PRD generated."
+TASKSJSON
+      emit_assistant "Generated task list from spec.\n\n---TASK_BUILD_STATUS---\nITERATION: 1\nMECHANICAL_FIXES: 0\nHUMAN_ITEMS: 0\nVERDICT: READY\n---END_TASK_BUILD_STATUS---"
+      emit_result "Task list generated."
     else
-      emit_assistant "No mechanical issues found.\n\n---PRD_BUILD_STATUS---\nITERATION: 2\nMECHANICAL_FIXES: 0\nHUMAN_ITEMS: 0\nVERDICT: READY\n---END_PRD_BUILD_STATUS---"
-      emit_result "PRD unchanged."
+      emit_assistant "No mechanical issues found.\n\n---TASK_BUILD_STATUS---\nITERATION: 2\nMECHANICAL_FIXES: 0\nHUMAN_ITEMS: 0\nVERDICT: READY\n---END_TASK_BUILD_STATUS---"
+      emit_result "Task list unchanged."
     fi
     ;;
 
-  prd-always-change)
-    # Always modify the PRD (prevents convergence — tests max-iterations cap).
-    cat > "$MOCK_PRD_PATH" << PRDJSON
+  task-always-change)
+    # Always modify the task list (prevents convergence — tests max-iterations cap).
+    cat > "$MOCK_TASKS_PATH" << TASKSJSON
 {"project":"test","branchName":"feature/test","description":"Test project","techStack":["bun"],"environment":{"runtime":"bun","testFramework":"vitest","notes":""},"userStories":[{"id":"US-001","title":"Setup $(date +%s%N)","description":"Project setup","acceptanceCriteria":["Project initialises"],"priority":"high","passes":false,"dependsOn":[],"notes":""}]}
-PRDJSON
-    emit_assistant "Fixed issues in PRD.\n\n---PRD_BUILD_STATUS---\nITERATION: 1\nMECHANICAL_FIXES: 2\nHUMAN_ITEMS: 1\nVERDICT: IN_PROGRESS\n---END_PRD_BUILD_STATUS---"
-    emit_result "PRD updated."
+TASKSJSON
+    emit_assistant "Fixed issues in task list.\n\n---TASK_BUILD_STATUS---\nITERATION: 1\nMECHANICAL_FIXES: 2\nHUMAN_ITEMS: 1\nVERDICT: IN_PROGRESS\n---END_TASK_BUILD_STATUS---"
+    emit_result "Task list updated."
     ;;
 
-  prd-needs-human-no-converge)
-    # Always modify PRD + emit human items (tests max-iterations exit with NEEDS_HUMAN).
-    cat > "$MOCK_PRD_PATH" << PRDJSON
+  task-needs-human-no-converge)
+    # Always modify task list + emit human items (tests max-iterations exit with NEEDS_HUMAN).
+    cat > "$MOCK_TASKS_PATH" << TASKSJSON
 {"project":"test","branchName":"feature/test","description":"Test project","techStack":["bun"],"environment":{"runtime":"bun","testFramework":"vitest","notes":""},"userStories":[{"id":"US-001","title":"Setup $(date +%s%N)","description":"Project setup","acceptanceCriteria":["Project initialises"],"priority":"high","passes":false,"dependsOn":[],"notes":""}]}
-PRDJSON
-    emit_assistant "Fixed issues but human decisions remain.\n\n---HUMAN_DECISION_ITEMS---\n- caching: Redis or in-memory LRU?\n---END_HUMAN_DECISION_ITEMS---\n\n---PRD_BUILD_STATUS---\nITERATION: 1\nMECHANICAL_FIXES: 1\nHUMAN_ITEMS: 1\nVERDICT: NEEDS_HUMAN\n---END_PRD_BUILD_STATUS---"
-    emit_result "PRD updated."
+TASKSJSON
+    emit_assistant "Fixed issues but human decisions remain.\n\n---HUMAN_DECISION_ITEMS---\n- caching: Redis or in-memory LRU?\n---END_HUMAN_DECISION_ITEMS---\n\n---TASK_BUILD_STATUS---\nITERATION: 1\nMECHANICAL_FIXES: 1\nHUMAN_ITEMS: 1\nVERDICT: NEEDS_HUMAN\n---END_TASK_BUILD_STATUS---"
+    emit_result "Task list updated."
     ;;
 
-  prd-needs-human)
-    # Create PRD on iteration 1, then converge with human items on iteration 2+.
-    if [ ! -f "$MOCK_PRD_PATH" ]; then
-      cat > "$MOCK_PRD_PATH" << 'PRDJSON'
+  task-needs-human)
+    # Create task list on iteration 1, then converge with human items on iteration 2+.
+    if [ ! -f "$MOCK_TASKS_PATH" ]; then
+      cat > "$MOCK_TASKS_PATH" << 'TASKSJSON'
 {"project":"test","branchName":"feature/test","description":"Test project","techStack":["bun","typescript"],"environment":{"runtime":"bun","testFramework":"vitest","notes":""},"userStories":[{"id":"US-001","title":"Setup","description":"Project setup","acceptanceCriteria":["Project initialises"],"priority":"high","passes":false,"dependsOn":[],"notes":""}]}
-PRDJSON
-      emit_assistant "Generated PRD.\n\n---HUMAN_DECISION_ITEMS---\n- auth: should sessions use JWT or server-side cookies?\n- search: full-text search via SQLite FTS5 or external service like Algolia?\n---END_HUMAN_DECISION_ITEMS---\n\n---PRD_BUILD_STATUS---\nITERATION: 1\nMECHANICAL_FIXES: 0\nHUMAN_ITEMS: 2\nVERDICT: NEEDS_HUMAN\n---END_PRD_BUILD_STATUS---"
-      emit_result "PRD generated with human items."
+TASKSJSON
+      emit_assistant "Generated task list.\n\n---HUMAN_DECISION_ITEMS---\n- auth: should sessions use JWT or server-side cookies?\n- search: full-text search via SQLite FTS5 or external service like Algolia?\n---END_HUMAN_DECISION_ITEMS---\n\n---TASK_BUILD_STATUS---\nITERATION: 1\nMECHANICAL_FIXES: 0\nHUMAN_ITEMS: 2\nVERDICT: NEEDS_HUMAN\n---END_TASK_BUILD_STATUS---"
+      emit_result "Task list generated with human items."
     else
-      emit_assistant "No mechanical issues.\n\n---HUMAN_DECISION_ITEMS---\n- auth: should sessions use JWT or server-side cookies?\n- search: full-text search via SQLite FTS5 or external service like Algolia?\n---END_HUMAN_DECISION_ITEMS---\n\n---PRD_BUILD_STATUS---\nITERATION: 2\nMECHANICAL_FIXES: 0\nHUMAN_ITEMS: 2\nVERDICT: NEEDS_HUMAN\n---END_PRD_BUILD_STATUS---"
-      emit_result "PRD unchanged."
+      emit_assistant "No mechanical issues.\n\n---HUMAN_DECISION_ITEMS---\n- auth: should sessions use JWT or server-side cookies?\n- search: full-text search via SQLite FTS5 or external service like Algolia?\n---END_HUMAN_DECISION_ITEMS---\n\n---TASK_BUILD_STATUS---\nITERATION: 2\nMECHANICAL_FIXES: 0\nHUMAN_ITEMS: 2\nVERDICT: NEEDS_HUMAN\n---END_TASK_BUILD_STATUS---"
+      emit_result "Task list unchanged."
     fi
     ;;
 
-  prd-no-write)
-    # Never create the PRD file (tests the missing-file guard).
-    emit_assistant "I could not generate the PRD."
+  task-no-write)
+    # Never create the task file (tests the missing-file guard).
+    emit_assistant "I could not generate the task list."
     emit_result "Failed."
     ;;
 

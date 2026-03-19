@@ -84,7 +84,7 @@ mkdir -p "$TARGET_DIR/.ralph/logs"
   echo "# Ralph configuration — generated from preset: $STACK"
   echo "# Edit these values to customise Ralph for your project."
   echo ""
-  echo "# Active plan — resolves to .ralph/specs/prd-<name>.json"
+  echo "# Active plan — resolves to .ralph/specs/tasks-<name>.json"
   echo "RALPH_PLAN="
   echo ""
   echo "# Directory layout (relative to project root)"
@@ -109,7 +109,7 @@ mkdir -p "$TARGET_DIR/.ralph/logs"
 # Engine files
 cp "$RALPH_HOME/engine/ralph.sh" "$TARGET_DIR/.ralph/engine/"
 cp "$RALPH_HOME/engine/prompt.md" "$TARGET_DIR/.ralph/engine/"
-cp "$RALPH_HOME/engine/prd-build-prompt.md" "$TARGET_DIR/.ralph/engine/"
+cp "$RALPH_HOME/engine/task-build-prompt.md" "$TARGET_DIR/.ralph/engine/"
 cp "$RALPH_HOME/engine/snapshot.sh" "$TARGET_DIR/.ralph/engine/"
 chmod +x "$TARGET_DIR/.ralph/engine/ralph.sh"
 chmod +x "$TARGET_DIR/.ralph/engine/snapshot.sh"
@@ -188,9 +188,9 @@ else
 SETTINGS_EOF
 fi
 
-# Copy prd-review skill if not present (already handles both .ralph/ and legacy paths)
-if [ ! -d "$TARGET_DIR/.claude/skills/prd-review" ]; then
-  cp -R "$RALPH_HOME/.claude/skills/prd-review" "$TARGET_DIR/.claude/skills/"
+# Copy task-review skill if not present (already handles both .ralph/ and legacy paths)
+if [ ! -d "$TARGET_DIR/.claude/skills/task-review" ]; then
+  cp -R "$RALPH_HOME/.claude/skills/task-review" "$TARGET_DIR/.claude/skills/"
 fi
 
 # --- CLAUDE.md: append directive if not already present ---
@@ -227,11 +227,11 @@ echo ""
 echo "Created:"
 echo "  .ralph/              — Ralph engine, skills, specs, config"
 echo "  .ralph/config.sh     — Edit to customise commands and behaviour"
-echo "  .ralph/specs/        — Place your PRD here: prd-<plan>.json"
+echo "  .ralph/specs/        — Specs and generated task lists go here"
 echo "  .claude/settings.json — Hook to block dangerous git commands"
 echo ""
 echo "Next steps:"
-echo "  1. Copy your PRD:    cp your-prd.json $TARGET_DIR/.ralph/specs/prd-my-plan.json"
-echo "  2. Set RALPH_PLAN:   Edit .ralph/config.sh and set RALPH_PLAN=my-plan"
-echo "  3. Review PRD:       /prd-review my-plan  (in Claude Code)"
-echo "  4. Run Ralph:        .ralph/engine/ralph.sh 20 my-plan"
+echo "  1. Write your spec:  Describe what you want built in a markdown file"
+echo "  2. Build tasks:      ralph task-build your-spec.md [plan-name]"
+echo "  3. Review tasks:     /task-review [plan-name]  (in Claude Code)"
+echo "  4. Run Ralph:        ralph run 20 [plan-name]"

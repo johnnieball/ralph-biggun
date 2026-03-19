@@ -32,10 +32,17 @@ analyse_standard() {
     echo "Iteration count: $iteration_count"
   fi
 
-  # Stories completed
-  if [ -f "$RUN_DIR/prd.json" ]; then
-    total=$(jq '.userStories | length' "$RUN_DIR/prd.json" 2>/dev/null || echo "?")
-    passed=$(jq '[.userStories[] | select(.passes == true)] | length' "$RUN_DIR/prd.json" 2>/dev/null || echo "?")
+  # Stories completed — check new name first, fall back to old for historical runs
+  local prd_file=""
+  if [ -f "$RUN_DIR/tasks.json" ]; then
+    prd_file="$RUN_DIR/tasks.json"
+  elif [ -f "$RUN_DIR/prd.json" ]; then
+    prd_file="$RUN_DIR/prd.json"
+  fi
+
+  if [ -n "$prd_file" ]; then
+    total=$(jq '.userStories | length' "$prd_file" 2>/dev/null || echo "?")
+    passed=$(jq '[.userStories[] | select(.passes == true)] | length' "$prd_file" 2>/dev/null || echo "?")
     echo "Stories completed: $passed / $total"
   fi
 
@@ -93,9 +100,9 @@ analyse_standard() {
     fi
   fi
 
-  if [ -f "$RUN_DIR/ralph-output.log" ] && [ -f "$RUN_DIR/prd.json" ]; then
+  if [ -f "$RUN_DIR/ralph-output.log" ] && [ -n "$prd_file" ]; then
     iteration_count=$(grep -c "ITERATION .* of" "$RUN_DIR/ralph-output.log" 2>/dev/null || echo "0")
-    story_count=$(jq '.userStories | length' "$RUN_DIR/prd.json" 2>/dev/null || echo "0")
+    story_count=$(jq '.userStories | length' "$prd_file" 2>/dev/null || echo "0")
     iteration_threshold=$(( story_count * 2 ))
     if [ "$iteration_count" -gt "$iteration_threshold" ]; then
       echo "WARNING: More than ${iteration_threshold} iterations for ${story_count} stories ($iteration_count iterations)"
@@ -103,10 +110,10 @@ analyse_standard() {
     fi
   fi
 
-  if [ -f "$RUN_DIR/exit-code.txt" ] && [ -f "$RUN_DIR/prd.json" ]; then
+  if [ -f "$RUN_DIR/exit-code.txt" ] && [ -n "$prd_file" ]; then
     exit_code=$(cat "$RUN_DIR/exit-code.txt")
-    total=$(jq '.userStories | length' "$RUN_DIR/prd.json" 2>/dev/null || echo "0")
-    passed=$(jq '[.userStories[] | select(.passes == true)] | length' "$RUN_DIR/prd.json" 2>/dev/null || echo "0")
+    total=$(jq '.userStories | length' "$prd_file" 2>/dev/null || echo "0")
+    passed=$(jq '[.userStories[] | select(.passes == true)] | length' "$prd_file" 2>/dev/null || echo "0")
     if [ "$exit_code" = "1" ] && [ "$passed" = "$total" ] && [ "$total" -gt 0 ]; then
       echo "WARNING: Exit code 1 but all stories passing"
       flags=$(( flags + 1 ))
@@ -143,7 +150,7 @@ analyse_multi_round() {
 
   for (( r=1; r<=round_count; r++ )); do
     log_file="$RUN_DIR/round-${r}-ralph-output.log"
-    prd_file="$RUN_DIR/round-${r}-prd.json"
+    prd_file="$RUN_DIR/round-${r}-tasks.json"
     exit_file="$RUN_DIR/round-${r}-exit-code.txt"
 
     if [ ! -f "$log_file" ]; then
@@ -186,14 +193,19 @@ analyse_multi_round() {
 
   echo ""
 
-  # Skipped stories
-  final_prd="$RUN_DIR/final-prd.json"
-  if [ ! -f "$final_prd" ]; then
-    # Fall back to last round's prd
+  # Skipped stories — check new name first, fall back to old for historical runs
+  final_prd=""
+  if [ -f "$RUN_DIR/final-tasks.json" ]; then
+    final_prd="$RUN_DIR/final-tasks.json"
+  elif [ -f "$RUN_DIR/final-prd.json" ]; then
+    final_prd="$RUN_DIR/final-prd.json"
+  elif [ -f "$RUN_DIR/round-${round_count}-tasks.json" ]; then
+    final_prd="$RUN_DIR/round-${round_count}-tasks.json"
+  elif [ -f "$RUN_DIR/round-${round_count}-prd.json" ]; then
     final_prd="$RUN_DIR/round-${round_count}-prd.json"
   fi
 
-  if [ -f "$final_prd" ]; then
+  if [ -n "$final_prd" ] && [ -f "$final_prd" ]; then
     total_stories=$(jq '.userStories | length' "$final_prd" 2>/dev/null || echo "?")
     final_passed=$(jq '[.userStories[] | select(.passes == true)] | length' "$final_prd" 2>/dev/null || echo "?")
     final_skipped=$(jq '[.userStories[] | select(.passes == "skipped")] | length' "$final_prd" 2>/dev/null || echo "0")
@@ -217,7 +229,7 @@ analyse_multi_round() {
   echo ""
   echo "--- Progression ---"
   for (( r=1; r<=round_count; r++ )); do
-    prd_file="$RUN_DIR/round-${r}-prd.json"
+    prd_file="$RUN_DIR/round-${r}-tasks.json"
     if [ -f "$prd_file" ]; then
       rp=$(jq '[.userStories[] | select(.passes == true)] | length' "$prd_file" 2>/dev/null || echo "0")
       rs=$(jq '[.userStories[] | select(.passes == "skipped")] | length' "$prd_file" 2>/dev/null || echo "0")
@@ -256,7 +268,7 @@ analyse_multi_round() {
   flags=0
 
   # Flag: same story skipped twice (shouldn't happen)
-  if [ -f "$final_prd" ]; then
+  if [ -n "$final_prd" ] && [ -f "$final_prd" ]; then
     skipped_ids=$(jq -r '.userStories[] | select(.passes == "skipped") | .id' "$final_prd" 2>/dev/null || echo "")
     dupes=$(echo "$skipped_ids" | sort | uniq -d)
     if [ -n "$dupes" ]; then
@@ -268,7 +280,7 @@ analyse_multi_round() {
   # Flag: zero stories completed in a round
   prev_passed=0
   for (( r=1; r<=round_count; r++ )); do
-    prd_file="$RUN_DIR/round-${r}-prd.json"
+    prd_file="$RUN_DIR/round-${r}-tasks.json"
     if [ -f "$prd_file" ]; then
       rp=$(jq '[.userStories[] | select(.passes == true)] | length' "$prd_file" 2>/dev/null || echo "0")
       if [ "$rp" -eq "$prev_passed" ] && [ "$r" -gt 1 ]; then
@@ -280,7 +292,7 @@ analyse_multi_round() {
   done
 
   # Flag: more than 2x story count total iterations
-  if [ -f "$final_prd" ]; then
+  if [ -n "$final_prd" ] && [ -f "$final_prd" ]; then
     story_count=$(jq '.userStories | length' "$final_prd" 2>/dev/null || echo "0")
     iteration_threshold=$(( story_count * 2 ))
     if [ "$iteration_threshold" -gt 0 ] && [ "$total_iterations" -gt "$iteration_threshold" ]; then

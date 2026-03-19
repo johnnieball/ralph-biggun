@@ -36,8 +36,8 @@ setup_brownfield_repo() {
   # Initialise Ralph with .ralph/ layout
   "$REPO_ROOT/ralph" init "$tmpdir" > /dev/null 2>&1
 
-  # Create a dummy PRD and set RALPH_PLAN
-  echo '{"userStories":[]}' > "$tmpdir/.ralph/specs/prd-test.json"
+  # Create a dummy task file and set RALPH_PLAN
+  echo '{"userStories":[]}' > "$tmpdir/.ralph/specs/tasks-test.json"
 
   # Write config overrides into .ralph/config.sh
   {

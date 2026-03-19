@@ -34,9 +34,9 @@ setup_temp_repo() {
   cp "$REPO_ROOT/engine/ralph.sh" engine/
   cp "$REPO_ROOT/engine/prompt.md" engine/
 
-  # Provide RALPH_PLAN and a dummy PRD
+  # Provide RALPH_PLAN and a dummy task file
   mkdir -p specs
-  echo '{"userStories":[]}' > specs/prd-test.json
+  echo '{"userStories":[]}' > specs/tasks-test.json
   {
     echo "RALPH_PLAN=test"
     echo "$ralphrc_content"

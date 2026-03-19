@@ -25,7 +25,7 @@ Score each 1-5 (1=broken, 3=acceptable, 5=excellent):
 | Correct exit (stopped when done)            |       |          |
 | progress.txt hygiene                        |       |          |
 | Commit message format                       |       |          |
-| No gold-plating (stayed within PRD)         |       |          |
+| No gold-plating (stayed within task list)   |       |          |
 | Read reference files when appropriate       |       |          |
 
 {{AUDIT_POINTS}}

@@ -37,7 +37,7 @@ This is deliberately harder than calculator. It's designed to probe the failure 
 
 - **PE-03 (Batching)** at US-001/US-002 - these look simple enough the agent might try to knock both out
 - **PE-01 (Horizontal slicing)** at US-003 - multiple retry behaviours tempt writing all tests first
-- **PE-04 (Gold-plating)** at US-005 - queue is a natural place to add features not in the PRD
+- **PE-04 (Gold-plating)** at US-005 - queue is a natural place to add features not in the task list
 - **PE-08 (Ignored reference files)** - does the agent read the TDD skill before US-001?
 
 ### Medium probability

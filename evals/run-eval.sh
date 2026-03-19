@@ -1,13 +1,13 @@
 #!/bin/bash
 set -e
 
-# Eval runner — point at any PRD JSON, run the eval
-# Usage: ./evals/run-eval.sh <prd.json> [--rounds N] [--iterations M]
+# Eval runner — point at any task list JSON, run the eval
+# Usage: ./evals/run-eval.sh <tasks.json> [--rounds N] [--iterations M]
 #
 # Examples:
-#   ./evals/run-eval.sh evals/prds/calculator/prd.json
-#   ./evals/run-eval.sh evals/prds/beast/prd.json --rounds 5
-#   ./evals/run-eval.sh ~/my-project/prd.json --iterations 25 --rounds 3
+#   ./evals/run-eval.sh evals/specs/calculator/tasks.json
+#   ./evals/run-eval.sh evals/specs/beast/tasks.json --rounds 5
+#   ./evals/run-eval.sh ~/my-project/tasks.json --iterations 25 --rounds 3
 
 # Ensure bun is on PATH (installed to ~/.bun by default)
 export PATH="$HOME/.bun/bin:$PATH"
@@ -18,7 +18,7 @@ source "$REPO_ROOT/lib/utils.sh"
 
 # --- Argument parsing ---
 
-PRD_PATH=""
+TASKS_PATH=""
 rounds=1
 iterations=20
 
@@ -34,15 +34,15 @@ while [ $# -gt 0 ]; do
       ;;
     -*)
       echo "ERROR: Unknown flag '$1'"
-      echo "Usage: $0 <prd.json> [--rounds N] [--iterations M]"
+      echo "Usage: $0 <tasks.json> [--rounds N] [--iterations M]"
       exit 1
       ;;
     *)
-      if [ -z "$PRD_PATH" ]; then
-        PRD_PATH="$1"
+      if [ -z "$TASKS_PATH" ]; then
+        TASKS_PATH="$1"
       else
         echo "ERROR: Unexpected argument '$1'"
-        echo "Usage: $0 <prd.json> [--rounds N] [--iterations M]"
+        echo "Usage: $0 <tasks.json> [--rounds N] [--iterations M]"
         exit 1
       fi
       shift
@@ -50,36 +50,36 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ -z "$PRD_PATH" ]; then
-  echo "Usage: $0 <prd.json> [--rounds N] [--iterations M]"
+if [ -z "$TASKS_PATH" ]; then
+  echo "Usage: $0 <tasks.json> [--rounds N] [--iterations M]"
   echo ""
-  echo "  <prd.json>       Path to PRD file (required)"
+  echo "  <tasks.json>       Path to task list file (required)"
   echo "  --rounds N       Number of rounds (default: 1)"
   echo "  --iterations M   Max iterations per round (default: 20)"
   echo ""
   echo "Examples:"
-  echo "  $0 evals/prds/calculator/prd.json"
-  echo "  $0 evals/prds/beast/prd.json --rounds 5 --iterations 30"
+  echo "  $0 evals/specs/calculator/tasks.json"
+  echo "  $0 evals/specs/beast/tasks.json --rounds 5 --iterations 30"
   exit 1
 fi
 
 # Resolve to absolute path
-prd_dir_resolved="$(cd "$(dirname "$PRD_PATH")" 2>/dev/null && pwd || true)"
-if [ -z "$prd_dir_resolved" ] || [ ! -f "$prd_dir_resolved/$(basename "$PRD_PATH")" ]; then
-  echo "ERROR: PRD file not found: $PRD_PATH"
+tasks_dir_resolved="$(cd "$(dirname "$TASKS_PATH")" 2>/dev/null && pwd || true)"
+if [ -z "$tasks_dir_resolved" ] || [ ! -f "$tasks_dir_resolved/$(basename "$TASKS_PATH")" ]; then
+  echo "ERROR: Task file not found: $TASKS_PATH"
   exit 1
 fi
-PRD_PATH="$prd_dir_resolved/$(basename "$PRD_PATH")"
+TASKS_PATH="$tasks_dir_resolved/$(basename "$TASKS_PATH")"
 
-# --- Derive names from PRD ---
+# --- Derive names from task list ---
 
-project_name=$(jq -r '.project' "$PRD_PATH" 2>/dev/null || echo "eval")
+project_name=$(jq -r '.project' "$TASKS_PATH" 2>/dev/null || echo "eval")
 plan_name=$(echo "$project_name" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
-prd_dir="$(dirname "$PRD_PATH")"
+tasks_dir="$(dirname "$TASKS_PATH")"
 
 echo ""
 echo "=== Ralph Eval ==="
-echo "PRD: $PRD_PATH"
+echo "Tasks: $TASKS_PATH"
 echo "Project: $project_name (plan: $plan_name)"
 echo "Iterations: $iterations | Rounds: $rounds"
 
@@ -103,11 +103,11 @@ if [ "$rounds" -gt 1 ]; then
   trap "rm -rf $TMPDIR_PATH" EXIT
 
   echo "Scaffolding $project_name..."
-  bash "$REPO_ROOT/create-project.sh" "$TMPDIR_PATH" "$PRD_PATH" "$plan_name"
-  cp "$PRD_PATH" "$RUN_DIR/input-prd.json"
+  bash "$REPO_ROOT/create-project.sh" "$TMPDIR_PATH" "$TASKS_PATH" "$plan_name"
+  cp "$TASKS_PATH" "$RUN_DIR/input-tasks.json"
 
   # Delegate to multi-round runner
-  bash "$SCRIPT_DIR/multi-round.sh" "$PRD_PATH" "$rounds" "$iterations" "$RUN_DIR" "$TMPDIR_PATH"
+  bash "$SCRIPT_DIR/multi-round.sh" "$TASKS_PATH" "$rounds" "$iterations" "$RUN_DIR" "$TMPDIR_PATH"
   multi_round_exit=$?
 
   # If multi-round paused for API failure, don't clean up the build dir
@@ -130,9 +130,9 @@ rm -rf "$TMPDIR_PATH"
 trap "rm -rf $TMPDIR_PATH" EXIT
 
 echo "Scaffolding $project_name..."
-bash "$REPO_ROOT/create-project.sh" "$TMPDIR_PATH" "$PRD_PATH" "$plan_name"
+bash "$REPO_ROOT/create-project.sh" "$TMPDIR_PATH" "$TASKS_PATH" "$plan_name"
 cd "$TMPDIR_PATH"
-cp "$PRD_PATH" "$RUN_DIR/input-prd.json"
+cp "$TASKS_PATH" "$RUN_DIR/input-tasks.json"
 
 # Run ralph.sh, capturing output
 echo "Running Ralph loop (max $iterations iterations)..."
@@ -143,7 +143,7 @@ set -e
 
 # Copy artefacts to run directory
 echo "$RALPH_EXIT" > "$RUN_DIR/exit-code.txt"
-cp ".ralph/specs/prd-${plan_name}.json" "$RUN_DIR/prd.json" 2>/dev/null || true
+cp ".ralph/specs/tasks-${plan_name}.json" "$RUN_DIR/tasks.json" 2>/dev/null || true
 cp .ralph/progress.txt "$RUN_DIR/progress.txt" 2>/dev/null || true
 git log --oneline --all > "$RUN_DIR/git-log.txt" 2>/dev/null || true
 
@@ -164,9 +164,9 @@ echo "Iterations: $iteration_count (max $iterations)" >> "$SUMMARY_FILE"
 # Stories passed
 total_stories="?"
 passed_stories="?"
-if [ -f "$RUN_DIR/prd.json" ]; then
-  total_stories=$(jq '.userStories | length' "$RUN_DIR/prd.json" 2>/dev/null || echo "?")
-  passed_stories=$(jq '[.userStories[] | select(.passes == true)] | length' "$RUN_DIR/prd.json" 2>/dev/null || echo "?")
+if [ -f "$RUN_DIR/tasks.json" ]; then
+  total_stories=$(jq '.userStories | length' "$RUN_DIR/tasks.json" 2>/dev/null || echo "?")
+  passed_stories=$(jq '[.userStories[] | select(.passes == true)] | length' "$RUN_DIR/tasks.json" 2>/dev/null || echo "?")
   echo "Stories: $passed_stories/$total_stories passed" >> "$SUMMARY_FILE"
 fi
 
@@ -189,9 +189,9 @@ echo "Exit code: $RALPH_EXIT" >> "$SUMMARY_FILE"
 
 # Generate scorecard from template with auto-filled values
 
-# Build audit points section from expected.md if it exists alongside the PRD
+# Build audit points section from expected.md if it exists alongside the task list
 audit_points=""
-expected_file="$prd_dir/expected.md"
+expected_file="$tasks_dir/expected.md"
 if [ -f "$expected_file" ]; then
   # Extract the "What to look for in the scorecard" section
   section=$(sed -n '/^## What to look for in the scorecard/,/^## /{ /^## What to look for/d; /^## /d; p; }' "$expected_file" 2>/dev/null || true)

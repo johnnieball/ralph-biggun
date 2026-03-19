@@ -13,7 +13,7 @@ Track changes to prompt.md and TDD skills, paired with eval results.
 - **Vertical slicing:** One story per iteration, never batched.
 - **Exit detection:** Clean `<promise>COMPLETE</promise>` + `EXIT_SIGNAL: true` after final story.
 - **Commit format:** `RALPH: feat: [US-XXX]` prefix on every commit.
-- **No gold-plating:** Nothing beyond PRD scope.
+- **No gold-plating:** Nothing beyond task list scope.
 - **Notes:** This is the baseline. All future changes measured against this.
 - **Stress-test eval run:** `2026-02-26-153254` (task-queue)
 - **Results:** 10/10 stories, 10 iterations, clean EXIT_SIGNAL (exit code 0), 42 tests passing

@@ -32,7 +32,7 @@ setup_temp_repo() {
 
   # Use .ralph/ layout
   "$REPO_ROOT/ralph" init "$tmpdir" > /dev/null 2>&1
-  echo '{"userStories":[]}' > "$tmpdir/.ralph/specs/prd-test.json"
+  echo '{"userStories":[]}' > "$tmpdir/.ralph/specs/tasks-test.json"
 
   {
     echo ""

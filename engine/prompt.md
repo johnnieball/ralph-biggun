@@ -3,31 +3,31 @@
 Read these files in order:
 
 1. `CLAUDE.md` - Project-specific patterns, conventions, and commands. This is your operating manual.
-2. `__PRD_PATH__` - The product requirements document containing all user stories.
+2. `__TASKS_PATH__` - The task list containing all user stories.
 3. `__PROGRESS_FILE__` - Start with the **Codebase Patterns** section at the top. These are consolidated learnings from previous iterations. Read them before doing anything else. Then read the full log to understand recent work.
 
 The last 10 RALPH commits (SHA, date, full message) have been appended to the bottom of this prompt by ralph.sh. Review them to understand what work has been done recently and avoid duplicating effort.
 
 4. `codebase-snapshot.md` — If this file exists, read it. It contains a deterministic snapshot of the codebase generated between iterations: file tree, public exports, import graph, test counts, and alerts. Compare the import graph against `__SPECS_DIR__/architecture.md` dependency rules. Flag any violations in your iteration notes.
 
-5. `__SPECS_DIR__/architecture.md` — If this file contains only HTML comment placeholders (`<!-- Generated from PRD`), populate it before starting story work:
-   - Read `__PRD_PATH__` and identify the modules, their responsibilities, and dependency direction
+5. `__SPECS_DIR__/architecture.md` — If this file contains only HTML comment placeholders (`<!-- Generated from task list`), populate it before starting story work:
+   - Read `__TASKS_PATH__` and identify the modules, their responsibilities, and dependency direction
    - Fill in Modules, Dependency Rules, and Hard Constraints with concrete entries
    - Keep it under 20 lines total
-   - Commit as `RALPH: chore: populate architecture.md from PRD` before starting the first story
+   - Commit as `RALPH: chore: populate architecture.md from task list` before starting the first story
      If architecture.md is already populated, read it and check planned changes against the dependency rules.
 
-6. `.gitignore` — On the first iteration, review `.gitignore` against the PRD's tech stack. The template covers common patterns (node_modules, .next, .env, data/, coverage, etc.). If the PRD specifies additional technology (e.g. Python venv, Rust target/, Go bin/, specific database files), append the relevant patterns. Do this in the same commit as the architecture.md population. Do NOT remove existing entries — only add missing ones.
+6. `.gitignore` — On the first iteration, review `.gitignore` against the task list's tech stack. The template covers common patterns (node_modules, .next, .env, data/, coverage, etc.). If the task list specifies additional technology (e.g. Python venv, Rust target/, Go bin/, specific database files), append the relevant patterns. Do this in the same commit as the architecture.md population. Do NOT remove existing entries — only add missing ones.
 
 # TASK SELECTION
 
-Pick the **highest priority** user story in `__PRD_PATH__` where `passes: false`.
+Pick the **highest priority** user story in `__TASKS_PATH__` where `passes: false`.
 
 Make each task the smallest possible unit of work. We don't want to outrun our headlights. One small, well-tested change per iteration.
 
 If there are **no remaining stories** with `passes: false`, emit `<promise>COMPLETE</promise>` and stop.
 
-If the PRD includes an architectural fitness test story (one that verifies module boundaries, import direction, or code structure constraints by writing tests that analyse source files), schedule it after core modules exist but before the final third of stories. This gives it enough code to check while leaving time for cleanup if violations are found.
+If the task list includes an architectural fitness test story (one that verifies module boundaries, import direction, or code structure constraints by writing tests that analyse source files), schedule it after core modules exist but before the final third of stories. This gives it enough code to check while leaving time for cleanup if violations are found.
 
 ONE task per iteration - this is non-negotiable. Do not batch. Do not "quickly knock out" a second story. One story, done properly, verified, committed.
 
@@ -147,7 +147,7 @@ If anything fails, fix it before committing. Do NOT commit broken code.
 
 # COMMIT
 
-Update the PRD first: set `passes: true` for the completed story in `__PRD_PATH__`. This must be included in the same commit.
+Update the task list first: set `passes: true` for the completed story in `__TASKS_PATH__`. This must be included in the same commit.
 
 Commit ALL changes with the message format:
 
@@ -202,10 +202,10 @@ RECOMMENDATION: <one line summary of what to do next>
 
 Set EXIT_SIGNAL to **true** when ALL of these conditions are met:
 
-1. All stories in the PRD have `passes: true`
+1. All stories in the task list have `passes: true`
 2. All tests are passing (or no tests exist for valid reasons)
 3. No errors or warnings in the last execution
-4. All requirements from the PRD are implemented
+4. All requirements from the task list are implemented
 5. You have nothing meaningful left to implement
 
 ## Exit Scenarios (Specification by Example)
@@ -216,10 +216,10 @@ Ralph's circuit breaker and response analyser use these scenarios to detect comp
 
 **Given**:
 
-- All stories in **PRD_PATH** have `passes: true`
+- All stories in **TASKS_PATH** have `passes: true`
 - Last test run shows all tests passing
 - No errors in recent output
-- All requirements from the PRD are implemented
+- All requirements from the task list are implemented
 
 **When**: You evaluate project status at end of loop
 
@@ -296,8 +296,8 @@ RECOMMENDATION: Stuck on [error description] - human intervention needed
 
 **Given**:
 
-- All tasks in the PRD are complete
-- You analyse the PRD and find nothing new to implement
+- All tasks in the task list are complete
+- You analyse the task list and find nothing new to implement
 - Code quality is acceptable
 - Tests are passing
 
@@ -313,7 +313,7 @@ FILES_MODIFIED: 0
 TESTS_STATUS: PASSING
 WORK_TYPE: DOCUMENTATION
 EXIT_SIGNAL: true
-RECOMMENDATION: No remaining work, all PRD stories implemented
+RECOMMENDATION: No remaining work, all task list stories implemented
 ---END_RALPH_STATUS---
 ```
 
@@ -323,7 +323,7 @@ RECOMMENDATION: No remaining work, all PRD stories implemented
 
 **Given**:
 
-- Tasks remain in the PRD with `passes: false`
+- Tasks remain in the task list with `passes: false`
 - Implementation is underway
 - Files are being modified
 - Tests are passing or being fixed
@@ -340,7 +340,7 @@ FILES_MODIFIED: 7
 TESTS_STATUS: PASSING
 WORK_TYPE: IMPLEMENTATION
 EXIT_SIGNAL: false
-RECOMMENDATION: Continue with next task from PRD
+RECOMMENDATION: Continue with next task from task list
 ---END_RALPH_STATUS---
 ```
 
@@ -377,7 +377,7 @@ RECOMMENDATION: Blocked on [specific dependency] - need [what's needed]
 - Do NOT continue with busy work when EXIT_SIGNAL should be true
 - Do NOT run tests repeatedly without implementing new features
 - Do NOT refactor code that is already working fine
-- Do NOT add features not in the PRD
+- Do NOT add features not in the task list
 - Do NOT forget to include the status block (Ralph depends on it!)
 
 # Protected Files (DO NOT MODIFY)
@@ -385,7 +385,7 @@ RECOMMENDATION: Blocked on [specific dependency] - need [what's needed]
 The following files and directories are part of Ralph's infrastructure. NEVER delete, move, rename, or overwrite these under any circumstances:
 
 - `__ENGINE_DIR__/` (entire directory - prompt.md, ralph.sh, snapshot.sh)
-- `__SPECS_DIR__/` (entire directory - architecture.md, prd.json structure)
+- `__SPECS_DIR__/` (entire directory - architecture.md, tasks.json structure)
 - `__SKILLS_DIR__/` (entire directory and all contents)
 - `__PROGRESS_FILE__` (append only - never replace, never delete content)
 - `CLAUDE.md` (update Codebase Patterns section only - never delete existing content)

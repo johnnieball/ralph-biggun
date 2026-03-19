@@ -13,7 +13,7 @@ Catalogue of observed failure modes across eval runs. Add new entries as they ap
 - **PE-01: Horizontal slicing** — Agent writes multiple tests before implementing any
 - **PE-02: GREEN before RED** — Agent writes implementation without a failing test first
 - **PE-03: Batching stories** — Agent completes more than one story per iteration
-- **PE-04: Gold-plating** — Agent adds features not in the PRD
+- **PE-04: Gold-plating** — Agent adds features not in the task list
 - **PE-05: No exit** — All stories pass but agent keeps running (refactoring, adding tests, etc.)
 - **PE-06: Wrong exit** — Agent exits before all stories are complete
 - **PE-07: Progress rot** — progress.txt grows verbose or stops being updated

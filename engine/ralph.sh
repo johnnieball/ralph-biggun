@@ -4,7 +4,7 @@ set -e
 # Architecture note: FRESH CONTEXT PER ITERATION
 # ================================================
 # Each iteration spawns a fresh Claude process via --print mode.
-# State lives in files (prd.json, progress.txt) and git, NOT in
+# State lives in files (tasks.json, progress.txt) and git, NOT in
 # conversation history. This prevents "context rot" — the degradation
 # in output quality as context windows fill up.
 #
@@ -70,29 +70,29 @@ if [ -n "$2" ]; then
   RALPH_PLAN="$2"
 fi
 
-# Resolve PRD path: CLI arg > RALPH_PLAN config
+# Resolve task file path: CLI arg > RALPH_PLAN config
 if [ -z "$RALPH_PLAN" ]; then
   echo "ERROR: No plan selected. Set RALPH_PLAN in $RALPH_CONFIG or pass as second arg."
   echo "  Usage: $0 [iterations] <plan-name>"
   echo "Available plans:"
-  for f in $SPECS_DIR/prd-*.json; do
-    [ -f "$f" ] && echo "  - $(basename "$f" | sed 's/^prd-//;s/\.json$//')"
+  for f in $SPECS_DIR/tasks-*.json; do
+    [ -f "$f" ] && echo "  - $(basename "$f" | sed 's/^tasks-//;s/\.json$//')"
   done
   exit 1
 fi
 
-PRD_PATH="$SPECS_DIR/prd-${RALPH_PLAN}.json"
+TASKS_PATH="$SPECS_DIR/tasks-${RALPH_PLAN}.json"
 
-if [ ! -f "$PRD_PATH" ]; then
-  echo "ERROR: PRD not found at $PRD_PATH"
+if [ ! -f "$TASKS_PATH" ]; then
+  echo "ERROR: Task file not found at $TASKS_PATH"
   echo "Available plans:"
-  for f in $SPECS_DIR/prd-*.json; do
-    [ -f "$f" ] && echo "  - $(basename "$f" | sed 's/^prd-//;s/\.json$//')"
+  for f in $SPECS_DIR/tasks-*.json; do
+    [ -f "$f" ] && echo "  - $(basename "$f" | sed 's/^tasks-//;s/\.json$//')"
   done
   exit 1
 fi
 
-echo "Using PRD: $PRD_PATH"
+echo "Using tasks: $TASKS_PATH"
 
 # Automatic log file — mirror all output to timestamped log
 mkdir -p "$LOG_DIR"
@@ -173,11 +173,11 @@ print_run_summary() {
   now=$(date +%s)
   end_elapsed=$(( now - loop_start ))
 
-  # Final story counts from PRD
+  # Final story counts from task list
   local final_done="?" final_total="?" final_remaining="?"
-  if [ -f "$PRD_PATH" ]; then
-    final_total=$(jq '.userStories | length' "$PRD_PATH" 2>/dev/null || echo "?")
-    final_done=$(jq '[.userStories[] | select(.passes == true)] | length' "$PRD_PATH" 2>/dev/null || echo "?")
+  if [ -f "$TASKS_PATH" ]; then
+    final_total=$(jq '.userStories | length' "$TASKS_PATH" 2>/dev/null || echo "?")
+    final_done=$(jq '[.userStories[] | select(.passes == true)] | length' "$TASKS_PATH" 2>/dev/null || echo "?")
     if [ "$final_total" != "?" ] && [ "$final_done" != "?" ]; then
       final_remaining=$(( final_total - final_done ))
     fi
@@ -265,7 +265,7 @@ for (( i=1; i<=MAX_ITERATIONS; i++ )); do
 
     # Build prompt (inject config placeholders)
     prompt="$(sed \
-      -e "s|__PRD_PATH__|$PRD_PATH|g" \
+      -e "s|__TASKS_PATH__|$TASKS_PATH|g" \
       -e "s|__TEST_CMD__|$TEST_CMD|g" \
       -e "s|__TYPECHECK_CMD__|$TYPECHECK_CMD|g" \
       -e "s|__LINT_CMD__|$LINT_CMD|g" \
@@ -428,12 +428,12 @@ $ralph_commits"
   iter_elapsed=$(( iter_end - iter_start ))
   total_elapsed=$(( iter_end - loop_start ))
 
-  # Parse story progress from PRD
+  # Parse story progress from task list
   story_done="?"
   story_total="?"
-  if [ -f "$PRD_PATH" ]; then
-    story_total=$(jq '.userStories | length' "$PRD_PATH" 2>/dev/null || echo "?")
-    story_done=$(jq '[.userStories[] | select(.passes == true)] | length' "$PRD_PATH" 2>/dev/null || echo "?")
+  if [ -f "$TASKS_PATH" ]; then
+    story_total=$(jq '.userStories | length' "$TASKS_PATH" 2>/dev/null || echo "?")
+    story_done=$(jq '[.userStories[] | select(.passes == true)] | length' "$TASKS_PATH" 2>/dev/null || echo "?")
   fi
 
   # Parse current story ID from RALPH_STATUS
@@ -449,8 +449,8 @@ $ralph_commits"
   # Get AC count for current story
   ac_count="?"
   story_title=""
-  if [ -n "$current_story" ] && [ -f "$PRD_PATH" ]; then
-    ac_count=$(jq -r --arg id "$current_story" '.userStories[] | select(.id == $id) | .acceptanceCriteria | length' "$PRD_PATH" 2>/dev/null || echo "?")
+  if [ -n "$current_story" ] && [ -f "$TASKS_PATH" ]; then
+    ac_count=$(jq -r --arg id "$current_story" '.userStories[] | select(.id == $id) | .acceptanceCriteria | length' "$TASKS_PATH" 2>/dev/null || echo "?")
   fi
 
   # Determine commit status and build summary line
@@ -462,8 +462,8 @@ $ralph_commits"
     fi
     summary_line="[$i/$MAX_ITERATIONS]"
     if [ -n "$current_story" ]; then
-      # Get story title from PRD
-      story_title=$(jq -r --arg id "$current_story" '.userStories[] | select(.id == $id) | .title // empty' "$PRD_PATH" 2>/dev/null || echo "")
+      # Get story title from task list
+      story_title=$(jq -r --arg id "$current_story" '.userStories[] | select(.id == $id) | .title // empty' "$TASKS_PATH" 2>/dev/null || echo "")
       if [ -n "$story_title" ]; then
         summary_line="$summary_line [$current_story] - $story_title"
       else
@@ -471,7 +471,7 @@ $ralph_commits"
       fi
       # Re-fetch AC count in case current_story was set from commit message
       if [ "$ac_count" = "?" ]; then
-        ac_count=$(jq -r --arg id "$current_story" '.userStories[] | select(.id == $id) | .acceptanceCriteria | length' "$PRD_PATH" 2>/dev/null || echo "?")
+        ac_count=$(jq -r --arg id "$current_story" '.userStories[] | select(.id == $id) | .acceptanceCriteria | length' "$TASKS_PATH" 2>/dev/null || echo "?")
       fi
     fi
     summary_line="$summary_line | $story_done/$story_total done | $commit_label | tests: $test_status | ${ac_count} ACs | cb: $no_progress_count/$CB_NO_PROGRESS_THRESHOLD | $(fmt_time $iter_elapsed) ($(fmt_time $total_elapsed) total)"

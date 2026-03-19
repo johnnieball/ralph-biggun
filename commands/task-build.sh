@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-# commands/prd-build.sh — Automated PRD generation loop
-# Usage: commands/prd-build.sh <spec-file> [plan-name] [max-iterations]
+# commands/task-build.sh — Automated task list generation loop
+# Usage: commands/task-build.sh <spec-file> [plan-name] [max-iterations]
 #
-# Reads a spec file and iteratively generates/refines a PRD JSON using
+# Reads a spec file and iteratively generates/refines a task list JSON using
 # the same fresh-context-per-iteration pattern as ralph.sh.
 
 RALPH_HOME="$(cd "$(dirname "$0")/.." && pwd)"
@@ -33,10 +33,10 @@ PLAN_NAME="${2:-}"
 MAX_ITERATIONS="${3:-5}"
 
 if [ -z "$SPEC_FILE" ]; then
-  echo "Usage: ralph prd-build <spec-file> [plan-name] [max-iterations]"
+  echo "Usage: ralph task-build <spec-file> [plan-name] [max-iterations]"
   echo ""
   echo "  spec-file       Path to the spec/requirements file (required)"
-  echo "  plan-name       Name for the PRD (default: spec filename stem)"
+  echo "  plan-name       Name for the task list (default: spec filename stem)"
   echo "  max-iterations  Max refinement passes (default: 5)"
   exit 1
 fi
@@ -51,26 +51,26 @@ if [ -z "$PLAN_NAME" ]; then
   PLAN_NAME=$(basename "$SPEC_FILE" | sed 's/\.[^.]*$//')
 fi
 
-PRD_PATH="$SPECS_DIR/prd-${PLAN_NAME}.json"
+TASKS_PATH="$SPECS_DIR/tasks-${PLAN_NAME}.json"
 mkdir -p "$SPECS_DIR"
 
 # Resolve prompt template — check .ralph/engine first, then ralph-home engine
 PROMPT_TEMPLATE=""
-if [ -f "$ENGINE_DIR/prd-build-prompt.md" ]; then
-  PROMPT_TEMPLATE="$ENGINE_DIR/prd-build-prompt.md"
-elif [ -f "$RALPH_HOME/engine/prd-build-prompt.md" ]; then
-  PROMPT_TEMPLATE="$RALPH_HOME/engine/prd-build-prompt.md"
+if [ -f "$ENGINE_DIR/task-build-prompt.md" ]; then
+  PROMPT_TEMPLATE="$ENGINE_DIR/task-build-prompt.md"
+elif [ -f "$RALPH_HOME/engine/task-build-prompt.md" ]; then
+  PROMPT_TEMPLATE="$RALPH_HOME/engine/task-build-prompt.md"
 else
-  echo "ERROR: prd-build-prompt.md not found in $ENGINE_DIR/ or $RALPH_HOME/engine/"
+  echo "ERROR: task-build-prompt.md not found in $ENGINE_DIR/ or $RALPH_HOME/engine/"
   exit 1
 fi
 
 # Logging
 mkdir -p "$LOG_DIR"
-LOG_FILE="$LOG_DIR/prd-build-$(date +%Y%m%d-%H%M%S).log"
+LOG_FILE="$LOG_DIR/task-build-$(date +%Y%m%d-%H%M%S).log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
-echo "PRD Build: $SPEC_FILE → $PRD_PATH"
+echo "Task Build: $SPEC_FILE → $TASKS_PATH"
 echo "Plan: $PLAN_NAME | Max iterations: $MAX_ITERATIONS"
 echo "Log: $LOG_FILE"
 echo ""
@@ -119,17 +119,17 @@ for (( i=1; i<=MAX_ITERATIONS; i++ )); do
   iter_start=$(date +%s)
 
   # Progress banner
-  if [ "$i" -eq 1 ] && [ ! -f "$PRD_PATH" ]; then
-    echo "━━━ Iteration $i/$MAX_ITERATIONS — Generating PRD from spec ━━━"
+  if [ "$i" -eq 1 ] && [ ! -f "$TASKS_PATH" ]; then
+    echo "━━━ Iteration $i/$MAX_ITERATIONS — Generating task list from spec ━━━"
   else
-    echo "━━━ Iteration $i/$MAX_ITERATIONS — Reviewing and refining PRD ━━━"
+    echo "━━━ Iteration $i/$MAX_ITERATIONS — Reviewing and refining task list ━━━"
   fi
   echo ""
 
   # Build prompt with placeholder injection
   prompt="$(sed \
     -e "s|__SPEC_FILE__|$SPEC_FILE|g" \
-    -e "s|__PRD_PATH__|$PRD_PATH|g" \
+    -e "s|__TASKS_PATH__|$TASKS_PATH|g" \
     -e "s|__SPECS_DIR__|$SPECS_DIR|g" \
     -e "s|__ITERATION__|$i|g" \
     "$PROMPT_TEMPLATE")"
@@ -188,20 +188,20 @@ for (( i=1; i<=MAX_ITERATIONS; i++ )); do
     continue
   fi
 
-  # Verify PRD file exists (guards against false convergence if Claude
+  # Verify task file exists (guards against false convergence if Claude
   # fails to write the file — shasum of empty input is deterministic)
-  if [ ! -f "$PRD_PATH" ]; then
+  if [ ! -f "$TASKS_PATH" ]; then
     echo ""
-    echo "WARNING: PRD file not created at $PRD_PATH after iteration $i"
+    echo "WARNING: Task file not created at $TASKS_PATH after iteration $i"
     if [ "$i" -ge "$MAX_ITERATIONS" ]; then
-      echo "ERROR: PRD was never created. Check the log: $LOG_FILE"
+      echo "ERROR: Task file was never created. Check the log: $LOG_FILE"
       exit 1
     fi
     continue
   fi
 
   # Check convergence via SHA comparison (jq -S normalises key order)
-  current_sha=$(jq -S . "$PRD_PATH" 2>/dev/null | shasum | awk '{print $1}')
+  current_sha=$(jq -S . "$TASKS_PATH" 2>/dev/null | shasum | awk '{print $1}')
 
   iter_end=$(date +%s)
   iter_elapsed=$(( iter_end - iter_start ))
@@ -225,8 +225,8 @@ for (( i=1; i<=MAX_ITERATIONS; i++ )); do
     | grep '^- ' \
     || true)
 
-  # Count stories in the PRD
-  story_count=$(jq '.userStories | length' "$PRD_PATH" 2>/dev/null || echo "?")
+  # Count stories in the task list
+  story_count=$(jq '.userStories | length' "$TASKS_PATH" 2>/dev/null || echo "?")
 
   echo ""
   echo "[$i/$MAX_ITERATIONS] ${fixes} fixes | ${human} human items | ${story_count} stories | verdict: ${verdict} | $(fmt_time $iter_elapsed)"
@@ -236,16 +236,16 @@ for (( i=1; i<=MAX_ITERATIONS; i++ )); do
     echo ""
     echo "═══════════════════════════════════════════════════"
     if [ "$verdict" = "NEEDS_HUMAN" ]; then
-      echo "  PRD BUILD COMPLETE — NEEDS HUMAN INPUT"
+      echo "  TASK BUILD COMPLETE — NEEDS HUMAN INPUT"
     else
-      echo "  PRD BUILD COMPLETE"
+      echo "  TASK BUILD COMPLETE"
     fi
     echo "═══════════════════════════════════════════════════"
     echo "Converged after:  $i iterations ($(fmt_time $total_elapsed))"
     echo "Stories:          $story_count"
     echo "Human items:      $human"
     echo "Verdict:          $verdict"
-    echo "Output:           $PRD_PATH"
+    echo "Output:           $TASKS_PATH"
     echo "Log:              $LOG_FILE"
     echo "═══════════════════════════════════════════════════"
 
@@ -262,12 +262,12 @@ for (( i=1; i<=MAX_ITERATIONS; i++ )); do
       echo "  To resolve: add your decisions to the spec file,"
       echo "  then re-run:"
       echo ""
-      echo "    ralph prd-build $SPEC_FILE $PLAN_NAME"
+      echo "    ralph task-build $SPEC_FILE $PLAN_NAME"
       echo ""
       echo "═══════════════════════════════════════════════════"
     else
       echo ""
-      echo "Next: /prd-review ${PLAN_NAME}  (in Claude Code)"
+      echo "Next: /task-review ${PLAN_NAME}  (in Claude Code)"
     fi
     exit 0
   fi
@@ -279,16 +279,16 @@ total_elapsed=$(( $(date +%s) - loop_start ))
 echo ""
 echo "═══════════════════════════════════════════════════"
 if [ "$verdict" = "NEEDS_HUMAN" ]; then
-  echo "  PRD BUILD — MAX ITERATIONS (NEEDS HUMAN INPUT)"
+  echo "  TASK BUILD — MAX ITERATIONS (NEEDS HUMAN INPUT)"
 else
-  echo "  PRD BUILD — MAX ITERATIONS"
+  echo "  TASK BUILD — MAX ITERATIONS"
 fi
 echo "═══════════════════════════════════════════════════"
 echo "Iterations:       $MAX_ITERATIONS ($(fmt_time $total_elapsed))"
-echo "Stories:          $(jq '.userStories | length' "$PRD_PATH" 2>/dev/null || echo "?")"
+echo "Stories:          $(jq '.userStories | length' "$TASKS_PATH" 2>/dev/null || echo "?")"
 echo "Human items:      $human"
 echo "Verdict:          $verdict"
-echo "Output:           $PRD_PATH"
+echo "Output:           $TASKS_PATH"
 echo "Log:              $LOG_FILE"
 echo "═══════════════════════════════════════════════════"
 
@@ -305,9 +305,9 @@ if [ -n "$human_items" ]; then
   echo "  To resolve: add your decisions to the spec file,"
   echo "  then re-run:"
   echo ""
-  echo "    ralph prd-build $SPEC_FILE $PLAN_NAME"
+  echo "    ralph task-build $SPEC_FILE $PLAN_NAME"
 else
   echo ""
-  echo "PRD may need further review. Re-run or use /prd-review ${PLAN_NAME}"
+  echo "Task list may need further review. Re-run or use /task-review ${PLAN_NAME}"
 fi
 exit 0

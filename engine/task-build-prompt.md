@@ -1,15 +1,15 @@
-# PRD Build — Iteration **ITERATION**
+# Task Build — Iteration **ITERATION**
 
-You are generating or refining a PRD JSON file for the Ralph autonomous TDD agent.
+You are generating or refining a task list JSON file for the Ralph autonomous TDD agent.
 
 ## Inputs
 
 1. Read the spec file at `__SPEC_FILE__`
-2. Check if a PRD already exists at `__PRD_PATH__`
+2. Check if a task list already exists at `__TASKS_PATH__`
 
-## If no PRD exists (first iteration)
+## If no task list exists (first iteration)
 
-Generate a complete PRD JSON from the spec. The JSON schema is:
+Generate a complete task list JSON from the spec. The JSON schema is:
 
 ```json
 {
@@ -50,11 +50,11 @@ Rules for generation:
 - **Explicit dependencies**: if story B requires story A, set `"dependsOn": ["US-001"]`
 - **Testable criteria**: every acceptance criterion must be convertible to a deterministic test assertion. No vague language like "should be user-friendly" or "performant"
 
-Write the PRD JSON to `__PRD_PATH__`.
+Write the task list JSON to `__TASKS_PATH__`.
 
-## If PRD already exists (iteration 2+)
+## If task list already exists (iteration 2+)
 
-Read the existing PRD at `__PRD_PATH__` and review it against these mechanical criteria:
+Read the existing task list at `__TASKS_PATH__` and review it against these mechanical criteria:
 
 1. **Oversized stories** — any story with more than 5 acceptance criteria must be split. Use a/b suffixes (US-012 → US-012a, US-012b). Update all `dependsOn` references.
 2. **Missing infrastructure stories** — stories that assume setup (project init, config, schema, database migrations) without a prior story providing it. Add infrastructure stories at the start and renumber.
@@ -62,17 +62,17 @@ Read the existing PRD at `__PRD_PATH__` and review it against these mechanical c
 4. **Ambiguous acceptance criteria** — criteria that can't be turned into a deterministic test assertion. Tighten with specific values, thresholds, or observable behaviours.
 5. **ID gaps or duplicates** — ensure story IDs are sequential and unique.
 
-Fix all mechanical issues directly in the PRD JSON.
+Fix all mechanical issues directly in the task list JSON.
 
 For human-decision items (architecture choices, scope questions, spike/research stories, business logic ambiguity), fix what you can and flag the rest using the structured block below.
 
 ## Convergence rule
 
-If you find **no mechanical issues** in the PRD, do NOT modify the file. Leave it exactly as-is. The build loop detects convergence by comparing file checksums between iterations — any rewrite (even with identical content) risks changing formatting and breaking detection.
+If you find **no mechanical issues** in the task list, do NOT modify the file. Leave it exactly as-is. The build loop detects convergence by comparing file checksums between iterations — any rewrite (even with identical content) risks changing formatting and breaking detection.
 
 ## Output
 
-After reviewing/generating the PRD, output these blocks at the end of your response.
+After reviewing/generating the task list, output these blocks at the end of your response.
 
 If there are human-decision items, output this block **before** the status block:
 
@@ -88,12 +88,12 @@ Each item should be a single line starting with `- `. Be specific about what nee
 Then output the status block:
 
 ```
----PRD_BUILD_STATUS---
+---TASK_BUILD_STATUS---
 ITERATION: __ITERATION__
 MECHANICAL_FIXES: <count of mechanical issues fixed>
 HUMAN_ITEMS: <count of items needing human review>
 VERDICT: READY | NEEDS_HUMAN | IN_PROGRESS
----END_PRD_BUILD_STATUS---
+---END_TASK_BUILD_STATUS---
 ```
 
 Verdict rules:

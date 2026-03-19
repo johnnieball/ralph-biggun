@@ -3,25 +3,25 @@ set -e
 
 # Multi-round eval runner — skip-and-continue logic for overnight runs
 # Called by run-eval.sh when --rounds > 1
-# Usage: multi-round.sh <prd_path> <rounds> <iterations> <RUN_DIR> <TMPDIR_PATH>
+# Usage: multi-round.sh <tasks_path> <rounds> <iterations> <RUN_DIR> <TMPDIR_PATH>
 
-PRD_PATH="$1"
+TASKS_PATH="$1"
 max_rounds="$2"
 iterations_per_round="$3"
 RUN_DIR="$4"
 TMPDIR_PATH="$5"
 
-if [ -z "$PRD_PATH" ] || [ -z "$max_rounds" ] || [ -z "$iterations_per_round" ] || [ -z "$RUN_DIR" ] || [ -z "$TMPDIR_PATH" ]; then
-  echo "ERROR: multi-round.sh requires 5 arguments: prd_path rounds iterations RUN_DIR TMPDIR_PATH"
+if [ -z "$TASKS_PATH" ] || [ -z "$max_rounds" ] || [ -z "$iterations_per_round" ] || [ -z "$RUN_DIR" ] || [ -z "$TMPDIR_PATH" ]; then
+  echo "ERROR: multi-round.sh requires 5 arguments: tasks_path rounds iterations RUN_DIR TMPDIR_PATH"
   exit 1
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Derive plan name from PRD
-plan_name=$(jq -r '.project' "$PRD_PATH" 2>/dev/null || echo "eval")
+# Derive plan name from task list
+plan_name=$(jq -r '.project' "$TASKS_PATH" 2>/dev/null || echo "eval")
 plan_name=$(echo "$plan_name" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
-prd_file="prd-${plan_name}.json"
+tasks_file="tasks-${plan_name}.json"
 
 echo "=== Multi-Round Eval ==="
 echo "Rounds: $max_rounds | Iterations per round: $iterations_per_round"
@@ -49,7 +49,7 @@ for (( round=1; round<=max_rounds; round++ )); do
   echo "Time: $(date '+%Y-%m-%d %H:%M:%S')"
 
   # Count remaining stories
-  remaining=$(jq '[.userStories[] | select(.passes == false)] | length' ".ralph/specs/$prd_file" 2>/dev/null || echo "0")
+  remaining=$(jq '[.userStories[] | select(.passes == false)] | length' ".ralph/specs/$tasks_file" 2>/dev/null || echo "0")
   if [ "$remaining" -eq 0 ]; then
     echo "All stories complete!"
     break
@@ -82,13 +82,13 @@ for (( round=1; round<=max_rounds; round++ )); do
   new_ralph_commits=$(( ralph_commits_after - ralph_commits_before ))
 
   # Count stories completed this round
-  passed_now=$(jq '[.userStories[] | select(.passes == true)] | length' ".ralph/specs/$prd_file" 2>/dev/null || echo "0")
+  passed_now=$(jq '[.userStories[] | select(.passes == true)] | length' ".ralph/specs/$tasks_file" 2>/dev/null || echo "0")
 
   # Write exit code
   echo "$RALPH_EXIT" > "$RUN_DIR/round-${round}-exit-code.txt"
 
   # Copy artefacts
-  cp ".ralph/specs/$prd_file" "$RUN_DIR/round-${round}-prd.json" 2>/dev/null || true
+  cp ".ralph/specs/$tasks_file" "$RUN_DIR/round-${round}-tasks.json" 2>/dev/null || true
   cp .ralph/progress.txt "$RUN_DIR/round-${round}-progress.txt" 2>/dev/null || true
   git log --oneline -20 > "$RUN_DIR/round-${round}-git-log.txt" 2>/dev/null || true
 
@@ -149,19 +149,19 @@ for (( round=1; round<=max_rounds; round++ )); do
 
       echo "" >> "$summary_file"
       local total_stories
-      total_stories=$(jq '.userStories | length' ".ralph/specs/$prd_file" 2>/dev/null || echo "?")
+      total_stories=$(jq '.userStories | length' ".ralph/specs/$tasks_file" 2>/dev/null || echo "?")
       local final_passed
-      final_passed=$(jq '[.userStories[] | select(.passes == true)] | length' ".ralph/specs/$prd_file" 2>/dev/null || echo "?")
+      final_passed=$(jq '[.userStories[] | select(.passes == true)] | length' ".ralph/specs/$tasks_file" 2>/dev/null || echo "?")
       local final_skipped
-      final_skipped=$(jq '[.userStories[] | select(.passes == "skipped")] | length' ".ralph/specs/$prd_file" 2>/dev/null || echo "0")
+      final_skipped=$(jq '[.userStories[] | select(.passes == "skipped")] | length' ".ralph/specs/$tasks_file" 2>/dev/null || echo "0")
       local final_remaining
-      final_remaining=$(jq '[.userStories[] | select(.passes == false)] | length' ".ralph/specs/$prd_file" 2>/dev/null || echo "?")
+      final_remaining=$(jq '[.userStories[] | select(.passes == false)] | length' ".ralph/specs/$tasks_file" 2>/dev/null || echo "?")
 
       echo "Final tally: $final_passed passed / $final_skipped skipped / $final_remaining remaining (of $total_stories)" >> "$summary_file"
 
       # List skipped stories
       local skipped_list
-      skipped_list=$(jq -r '.userStories[] | select(.passes == "skipped") | "  \(.id): \(.skipReason // "no reason")"' ".ralph/specs/$prd_file" 2>/dev/null || echo "")
+      skipped_list=$(jq -r '.userStories[] | select(.passes == "skipped") | "  \(.id): \(.skipReason // "no reason")"' ".ralph/specs/$tasks_file" 2>/dev/null || echo "")
       if [ -n "$skipped_list" ]; then
         echo "" >> "$summary_file"
         echo "Skipped stories:" >> "$summary_file"
@@ -206,7 +206,7 @@ for (( round=1; round<=max_rounds; round++ )); do
 
   # Fall back to first story with passes: false
   if [ -z "$stuck_story_id" ]; then
-    stuck_story_id=$(jq -r '.userStories[] | select(.passes == false) | .id' ".ralph/specs/$prd_file" 2>/dev/null | head -1 || echo "")
+    stuck_story_id=$(jq -r '.userStories[] | select(.passes == false) | .id' ".ralph/specs/$tasks_file" 2>/dev/null | head -1 || echo "")
   fi
 
   # Build skip reason
@@ -215,15 +215,15 @@ for (( round=1; round<=max_rounds; round++ )); do
   # Skip the stuck story if identified and still has passes: false
   if [ -n "$stuck_story_id" ]; then
     # Check this story actually has passes: false (not already skipped or passed)
-    story_status=$(jq -r --arg id "$stuck_story_id" '.userStories[] | select(.id == $id) | .passes' ".ralph/specs/$prd_file" 2>/dev/null || echo "")
+    story_status=$(jq -r --arg id "$stuck_story_id" '.userStories[] | select(.id == $id) | .passes' ".ralph/specs/$tasks_file" 2>/dev/null || echo "")
 
     if [ "$story_status" = "false" ]; then
       echo "Skipping stuck story: $stuck_story_id ($skip_reason)"
 
-      # Update prd.json
+      # Update tasks.json
       jq --arg id "$stuck_story_id" --arg reason "$skip_reason" \
         '(.userStories[] | select(.id == $id)) |= (.passes = "skipped" | .skipReason = $reason)' \
-        ".ralph/specs/$prd_file" > ".ralph/specs/${prd_file}.tmp" && mv ".ralph/specs/${prd_file}.tmp" ".ralph/specs/$prd_file"
+        ".ralph/specs/$tasks_file" > ".ralph/specs/${tasks_file}.tmp" && mv ".ralph/specs/${tasks_file}.tmp" ".ralph/specs/$tasks_file"
 
       # Append skip notice to progress.txt
       cat >> .ralph/progress.txt <<SKIP_EOF
@@ -235,19 +235,19 @@ SKIP_EOF
 
     else
       # Story already passed or skipped — check if there are any remaining false stories
-      remaining_false=$(jq '[.userStories[] | select(.passes == false)] | length' ".ralph/specs/$prd_file" 2>/dev/null || echo "0")
+      remaining_false=$(jq '[.userStories[] | select(.passes == false)] | length' ".ralph/specs/$tasks_file" 2>/dev/null || echo "0")
       if [ "$remaining_false" -eq 0 ]; then
         echo "WARNING: No more stories with passes: false. All remaining stories already passed or skipped."
         break
       fi
 
       # Try the next false story instead
-      next_false=$(jq -r '.userStories[] | select(.passes == false) | .id' ".ralph/specs/$prd_file" 2>/dev/null | head -1 || echo "")
+      next_false=$(jq -r '.userStories[] | select(.passes == false) | .id' ".ralph/specs/$tasks_file" 2>/dev/null | head -1 || echo "")
       if [ -n "$next_false" ]; then
         echo "Story $stuck_story_id already handled. Skipping next stuck candidate: $next_false ($skip_reason)"
         jq --arg id "$next_false" --arg reason "$skip_reason" \
           '(.userStories[] | select(.id == $id)) |= (.passes = "skipped" | .skipReason = $reason)' \
-          ".ralph/specs/$prd_file" > ".ralph/specs/${prd_file}.tmp" && mv ".ralph/specs/${prd_file}.tmp" ".ralph/specs/$prd_file"
+          ".ralph/specs/$tasks_file" > ".ralph/specs/${tasks_file}.tmp" && mv ".ralph/specs/${tasks_file}.tmp" ".ralph/specs/$tasks_file"
 
         cat >> .ralph/progress.txt <<SKIP_EOF
 
@@ -271,10 +271,10 @@ done
 overall_end=$(date +%s)
 overall_elapsed=$(( overall_end - overall_start ))
 
-total_stories=$(jq '.userStories | length' ".ralph/specs/$prd_file" 2>/dev/null || echo "?")
-final_passed=$(jq '[.userStories[] | select(.passes == true)] | length' ".ralph/specs/$prd_file" 2>/dev/null || echo "?")
-final_skipped=$(jq '[.userStories[] | select(.passes == "skipped")] | length' ".ralph/specs/$prd_file" 2>/dev/null || echo "0")
-final_remaining=$(jq '[.userStories[] | select(.passes == false)] | length' ".ralph/specs/$prd_file" 2>/dev/null || echo "?")
+total_stories=$(jq '.userStories | length' ".ralph/specs/$tasks_file" 2>/dev/null || echo "?")
+final_passed=$(jq '[.userStories[] | select(.passes == true)] | length' ".ralph/specs/$tasks_file" 2>/dev/null || echo "?")
+final_skipped=$(jq '[.userStories[] | select(.passes == "skipped")] | length' ".ralph/specs/$tasks_file" 2>/dev/null || echo "0")
+final_remaining=$(jq '[.userStories[] | select(.passes == false)] | length' ".ralph/specs/$tasks_file" 2>/dev/null || echo "?")
 
 SUMMARY_FILE="$RUN_DIR/summary.txt"
 
@@ -308,7 +308,7 @@ SUMMARY_FILE="$RUN_DIR/summary.txt"
   echo "Remaining: $final_remaining / $total_stories"
 
   # List skipped stories with reasons
-  skipped_list=$(jq -r '.userStories[] | select(.passes == "skipped") | "  \(.id) (\(.title)): \(.skipReason // "no reason")"' ".ralph/specs/$prd_file" 2>/dev/null || echo "")
+  skipped_list=$(jq -r '.userStories[] | select(.passes == "skipped") | "  \(.id) (\(.title)): \(.skipReason // "no reason")"' ".ralph/specs/$tasks_file" 2>/dev/null || echo "")
   if [ -n "$skipped_list" ]; then
     echo ""
     echo "--- Skipped Stories ---"
@@ -324,7 +324,7 @@ SUMMARY_FILE="$RUN_DIR/summary.txt"
 } > "$SUMMARY_FILE"
 
 # Copy final artefacts
-cp ".ralph/specs/$prd_file" "$RUN_DIR/final-prd.json" 2>/dev/null || true
+cp ".ralph/specs/$tasks_file" "$RUN_DIR/final-tasks.json" 2>/dev/null || true
 cp .ralph/progress.txt "$RUN_DIR/final-progress.txt" 2>/dev/null || true
 git log --oneline --all > "$RUN_DIR/final-git-log.txt" 2>/dev/null || true
 

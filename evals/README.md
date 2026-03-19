@@ -1,19 +1,19 @@
 # Eval System
 
-Point at any PRD JSON, run the eval.
+Point at any task list JSON, run the eval.
 
 ## Usage
 
 ```bash
 # Single round (default: 20 iterations)
-./evals/run-eval.sh evals/prds/calculator/prd.json
-./evals/run-eval.sh evals/prds/task-queue/prd.json --iterations 25
+./evals/run-eval.sh evals/specs/calculator/tasks.json
+./evals/run-eval.sh evals/specs/task-queue/tasks.json --iterations 25
 
 # Multi-round (overnight, skip-and-continue)
-./evals/run-eval.sh evals/prds/beast/prd.json --rounds 5 --iterations 30
+./evals/run-eval.sh evals/specs/beast/tasks.json --rounds 5 --iterations 30
 
-# Any PRD — not limited to bundled examples
-./evals/run-eval.sh ~/my-project/prd.json --iterations 25 --rounds 3
+# Any task list — not limited to bundled examples
+./evals/run-eval.sh ~/my-project/tasks.json --iterations 25 --rounds 3
 ```
 
 ### Flags
@@ -55,17 +55,17 @@ These are free (no API calls). Eval runs cost API credits.
 
 ```
 evals/
-  run-eval.sh              # Single entry point: takes PRD path + flags
+  run-eval.sh              # Single entry point: takes task list path + flags
   multi-round.sh           # Multi-round loop logic (used when --rounds > 1)
   analyse-run.sh           # Post-run diagnostics
   scorecard-template.md    # Manual scoring template
   failure-taxonomy.md      # Reference: known failure patterns
   prompt-changelog.md      # Reference: prompt version tracking
   README.md
-  prds/
-    calculator/prd.json, expected.md
-    task-queue/prd.json, expected.md
-    beast/prd.json, expected.md
+  specs/
+    calculator/tasks.json, expected.md
+    task-queue/tasks.json, expected.md
+    beast/tasks.json, expected.md
   runs/                    # Gitignored — eval output
 
 tests/

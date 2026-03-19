@@ -102,7 +102,7 @@ The beast run uses a multi-round wrapper (`evals/multi-round.sh`, invoked via `r
 
 1. Runs ralph.sh with configured iterations per round
 2. When Ralph exits, captures logs
-3. If stories remain with `passes: false`, identifies the stuck story, marks it as `"skipped"` in prd.json, and restarts Ralph
+3. If stories remain with `passes: false`, identifies the stuck story, marks it as `"skipped"` in tasks.json, and restarts Ralph
 4. Repeats for up to N rounds
 5. Produces a per-round summary and a final aggregate report
 

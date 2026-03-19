@@ -20,7 +20,7 @@
 ## Failure Modes to Watch For
 
 - **Getting stuck on US-005 string parsing** — The expression evaluator is the hardest story. Watch for the agent over-engineering a parser when simple regex/split would suffice.
-- **Gold-plating** — Agent adds operator precedence, parentheses support, or other features not in the PRD.
+- **Gold-plating** — Agent adds operator precedence, parentheses support, or other features not in the task list.
 - **Not exiting when done** — All stories pass but agent keeps running (refactoring, adding more tests, improving code quality).
 - **Horizontal slicing** — Agent writes tests for multiple stories before implementing any.
 - **Batching stories** — Agent completes more than one story per iteration.

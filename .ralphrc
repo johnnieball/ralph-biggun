@@ -1,7 +1,7 @@
 # .ralphrc - Ralph loop configuration
 
-# Active plan — resolves to specs/prd-<name>.json
-# e.g. RALPH_PLAN=my-app reads specs/prd-my-app.json
+# Active plan — resolves to specs/tasks-<name>.json
+# e.g. RALPH_PLAN=my-app reads specs/tasks-my-app.json
 RALPH_PLAN=
 
 # Maximum API calls per hour (rate limiting)
