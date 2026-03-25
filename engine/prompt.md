@@ -29,6 +29,13 @@ If there are **no remaining stories** with `passes: false`, emit `<promise>COMPL
 
 If the task list includes an architectural fitness test story (one that verifies module boundaries, import direction, or code structure constraints by writing tests that analyse source files), schedule it after core modules exist but before the final third of stories. This gives it enough code to check while leaving time for cleanup if violations are found.
 
+If the current story has a `gate` field, it is an **integration validation story** that tests against real infrastructure. The user has been prompted to set up their environment before this iteration. For these stories:
+
+- Do NOT mock external dependencies — exercise real connections
+- Tests verify real connectivity, configuration, and end-to-end behaviour
+- If tests fail due to infrastructure issues (connection refused, auth denied, missing resources), set STATUS: BLOCKED with a RECOMMENDATION describing what needs fixing. Do not attempt to fix infrastructure from code.
+- RED-GREEN-REFACTOR still applies: RED = test exercising real boundary, GREEN = fix application code to work with real infrastructure
+
 ONE task per iteration - this is non-negotiable. Do not batch. Do not "quickly knock out" a second story. One story, done properly, verified, committed.
 
 # EXPLORATION

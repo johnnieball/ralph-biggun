@@ -29,6 +29,7 @@ Analyse the task list against these categories:
 3. **Implicit dependencies** — stories that must be done in a specific order but don't declare it. Add `dependsOn` arrays where the ordering is unambiguous.
 4. **Ambiguous acceptance criteria** — criteria that can't be turned into a deterministic test assertion. Tighten them with specific values, thresholds, or observable behaviours.
 5. **ID gaps or duplicates** — ensure story IDs are sequential and unique.
+6. **Integration gate hygiene** — if integration validation stories exist: exactly one has a `gate` field (the first), they have `dependsOn` referencing build stories, and they have `priority: "low"`.
 
 ### Human Decisions (flag these, do not fix)
 
@@ -36,6 +37,7 @@ Analyse the task list against these categories:
 2. **Scope questions** — stories that could mean very different things depending on intent
 3. **Spike/research stories** — exploratory work with no clear pass/fail that can't be TDD'd
 4. **Business logic ambiguity** — rules that require domain knowledge to resolve
+5. **Integration scope** — if the spec mentions deployment or external services, does the task list include integration validation stories? Flag if missing.
 
 For each human-decision item, provide **opinionated guidance** so the user can decide without reading the task list themselves. Every item must include:
 

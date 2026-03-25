@@ -1,0 +1,102 @@
+{
+  "project": "status-checker-eval",
+  "branchName": "ralph/initial-build",
+  "description": "HTTP status-checking library with integration gate. Exercises two-phase build: mocked TDD for core logic, then gated integration validation against real endpoints.",
+  "techStack": ["bun", "typescript", "vitest"],
+  "environment": {
+    "runtime": "bun",
+    "testFramework": "vitest",
+    "notes": "Integration stories require STATUS_CHECKER_API_URL and STATUS_CHECKER_DB_URL env vars pointing to real endpoints."
+  },
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Check a single endpoint",
+      "description": "As a user, I can check the health of a single HTTP endpoint so that I know whether it is up or down.",
+      "acceptanceCriteria": [
+        "checkEndpoint returns { name, url, status, healthy, latencyMs, checkedAt }",
+        "healthy is true when response status matches expectedStatus (default 200)",
+        "healthy is false when response status does not match",
+        "latencyMs is a positive number representing milliseconds"
+      ],
+      "priority": "high",
+      "passes": false,
+      "dependsOn": [],
+      "notes": "Use dependency injection — accept a fetcher function so tests can pass a mock."
+    },
+    {
+      "id": "US-002",
+      "title": "Batch check multiple endpoints",
+      "description": "As a user, I can check multiple endpoints concurrently so that I get all results quickly.",
+      "acceptanceCriteria": [
+        "checkAll accepts an array of endpoints and returns an array of results",
+        "All checks run concurrently (Promise.all or equivalent)",
+        "A failing endpoint does not prevent other checks from completing",
+        "Results array has one entry per input endpoint"
+      ],
+      "priority": "high",
+      "passes": false,
+      "dependsOn": ["US-001"],
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Summarise check results",
+      "description": "As a user, I can get a summary of all check results so that I can see overall health at a glance.",
+      "acceptanceCriteria": [
+        "summarise returns { total, healthy, unhealthy, endpoints }",
+        "total equals the number of results",
+        "healthy counts results where healthy is true",
+        "Each endpoint entry includes a human-readable status line"
+      ],
+      "priority": "medium",
+      "passes": false,
+      "dependsOn": ["US-001"],
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Threshold alerting",
+      "description": "As a user, I can define alerting rules so that I get warnings when latency is too high or required endpoints are unhealthy.",
+      "acceptanceCriteria": [
+        "getAlerts returns alert strings for endpoints exceeding maxLatencyMs",
+        "getAlerts returns alert strings when requiredHealthy endpoints are unhealthy",
+        "Returns empty array when all rules pass",
+        "Each alert string identifies the endpoint and violation"
+      ],
+      "priority": "medium",
+      "passes": false,
+      "dependsOn": ["US-001", "US-002"],
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Verify real endpoint connectivity",
+      "description": "Integration validation: verify that the status checker can reach real HTTP endpoints over the network and return accurate results.",
+      "acceptanceCriteria": [
+        "checkEndpoint with real fetch against STATUS_CHECKER_API_URL returns a valid result",
+        "checkEndpoint with real fetch against STATUS_CHECKER_DB_URL returns a valid result",
+        "Reported status codes match actual HTTP responses"
+      ],
+      "priority": "low",
+      "passes": false,
+      "dependsOn": ["US-001", "US-002"],
+      "notes": "Integration story — uses real HTTP, no mocks.",
+      "gate": "Set STATUS_CHECKER_API_URL and STATUS_CHECKER_DB_URL environment variables pointing to reachable HTTP endpoints before continuing. Any URL that returns an HTTP response will work (e.g. https://httpbin.org/status/200)."
+    },
+    {
+      "id": "US-006",
+      "title": "End-to-end smoke test",
+      "description": "Integration validation: run a full batch check and summary against real endpoints to verify the entire pipeline works end-to-end.",
+      "acceptanceCriteria": [
+        "checkAll with real fetch and both configured endpoints returns results for both",
+        "summarise produces correct counts matching real endpoint states",
+        "getAlerts with a 5000ms latency threshold returns no alerts for reachable endpoints"
+      ],
+      "priority": "low",
+      "passes": false,
+      "dependsOn": ["US-005"],
+      "notes": "Integration story — full pipeline smoke test."
+    }
+  ]
+}

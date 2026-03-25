@@ -34,7 +34,8 @@ Generate a complete task list JSON from the spec. The JSON schema is:
       "priority": "high|medium|low",
       "passes": false,
       "dependsOn": [],
-      "notes": ""
+      "notes": "",
+      "gate": null
     }
   ]
 }
@@ -52,6 +53,31 @@ Rules for generation:
 
 Write the task list JSON to `__TASKS_PATH__`.
 
+### Integration boundaries
+
+When the spec involves external systems (cloud providers, third-party APIs, databases requiring provisioning, deployment targets, payment processors, auth providers, etc.), apply the two-phase model:
+
+**Phase 1 — Build**: Generate stories as normal. Mock all external dependencies at system boundaries. Standard TDD.
+
+**Phase 2 — Integration validation**: After all build stories, append stories that verify wiring against real infrastructure:
+
+1. Connectivity — services can reach declared dependencies (network, auth, DNS)
+2. Configuration — env vars, secrets, and config match between application and infrastructure
+3. Runtime dependencies — required packages, binaries, and services are present
+4. Entry points — all endpoints, commands, and triggers are functional (no stubs)
+5. End-to-end smoke — one request flows through the entire real stack
+
+Rules:
+
+- Integration stories get `"priority": "low"` (execute after build phase)
+- Set `"dependsOn"` to include the build stories they validate
+- Mark the FIRST integration story with a `"gate"` field describing what the user must set up
+- Gate message should be generic — reference the tech stack from the spec but don't hardcode provider-specific commands unless the spec names them
+- Only ONE story gets the gate
+- The `"gate"` field is optional and defaults to `null`. Only set it on integration validation stories.
+
+If the spec has no external integration, do not add integration stories or use the gate field.
+
 ## If task list already exists (iteration 2+)
 
 Read the existing task list at `__TASKS_PATH__` and review it against these mechanical criteria:
@@ -61,6 +87,7 @@ Read the existing task list at `__TASKS_PATH__` and review it against these mech
 3. **Implicit dependencies** — stories that must be done in a specific order but don't declare `dependsOn`. Add the dependency where the ordering is unambiguous.
 4. **Ambiguous acceptance criteria** — criteria that can't be turned into a deterministic test assertion. Tighten with specific values, thresholds, or observable behaviours.
 5. **ID gaps or duplicates** — ensure story IDs are sequential and unique.
+6. **Gate placement** — if integration validation stories exist, exactly one should have a `gate` field on the first integration story. Fix if multiple have `gate` or if none do.
 
 Fix all mechanical issues directly in the task list JSON.
 

@@ -253,12 +253,46 @@ TMPFILES=()
 trap 'print_run_summary 2>/dev/null; rm -f "${TMPFILES[@]}"' EXIT
 
 loop_start=$(date +%s)
+gate_cleared=false
 
 for (( i=1; i<=MAX_ITERATIONS; i++ )); do
   rate_limit_retries=0
 
   iter_start=$(date +%s)
   last_ralph_sha_before="$last_ralph_sha"
+
+  # --- Integration gate check ---
+  # Only fires once per run. After the user acknowledges the gate, subsequent
+  # iterations proceed without re-prompting (even if the gated story is still
+  # passes: false due to infra issues).
+  if [ "$gate_cleared" = false ] && [ -f "$TASKS_PATH" ]; then
+    gate_message=$(jq -r '
+      [.userStories[] | select(.passes != true)] |
+      sort_by(if .priority == "high" then 0 elif .priority == "medium" then 1 else 2 end) |
+      first | .gate // empty
+    ' "$TASKS_PATH" 2>/dev/null)
+
+    if [ -n "$gate_message" ]; then
+      echo ""
+      echo "═══════════════════════════════════════════════════"
+      echo "  INTEGRATION GATE"
+      echo "═══════════════════════════════════════════════════"
+      echo ""
+      echo "$gate_message"
+      echo ""
+      echo "═══════════════════════════════════════════════════"
+
+      if [ -t 0 ]; then
+        read -rp "Press ENTER when ready to continue (Ctrl+C to abort)... " _
+        gate_cleared=true
+      else
+        echo "Gate reached but stdin is not a terminal."
+        echo "Re-run ralph interactively to proceed past this gate."
+        exit_reason="gate_non_interactive"
+        exit 2
+      fi
+    fi
+  fi
 
   # Rate limit retry loop — retries the same iteration without incrementing
   # the circuit breaker when an API rate limit is detected

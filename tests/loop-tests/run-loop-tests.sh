@@ -33,6 +33,7 @@ run_test "test-circuit-breaker.sh"
 run_test "test-exit-detection.sh"
 run_test "test-rate-limiting.sh"
 run_test "test-hook-blocking.sh"
+run_test "test-integration-gate.sh"
 
 # Print summary
 for i in "${!TESTS[@]}"; do
