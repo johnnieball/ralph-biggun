@@ -223,3 +223,21 @@ Before claiming ANY test passes:
 ## Dependency Verification
 
 - After installing a new dependency, verify its API before using it. Check the return types (don't assume sync vs async from a previous major version). Run `bun run typecheck` after your first usage to catch type mismatches early.
+
+## Three-Tier Browser Testing
+
+When a project has a UI, testing operates at three tiers:
+
+### Tier 1: Unit/Integration Tests (during TDD)
+
+These run every iteration. They test logic through public interfaces. No browser involved. This is the standard RED-GREEN-REFACTOR cycle described above.
+
+### Tier 2: E2E Test Files (written during TDD, executed later)
+
+When a story completes and a journey becomes fully testable (all `dependsOn` stories pass), write the Playwright test file in `e2e/`. **Do not execute it.** The E2E runner handles execution at phase boundaries and after all stories complete.
+
+Writing the E2E test file is part of the TDD iteration. Executing it is not. The test file captures the expected journey behaviour while you have full context of the code you just wrote.
+
+### Tier 3: Component Tests (future)
+
+Deferred until tiers 1 and 2 are proven. When added, these will mount single components in a real browser during TDD using `@playwright/experimental-ct-*`. Same RED-GREEN-REFACTOR cycle, just in a real browser.

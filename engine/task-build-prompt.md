@@ -22,6 +22,30 @@ Generate a complete task list JSON from the spec. The JSON schema is:
     "testFramework": "e.g. vitest, pytest",
     "notes": "any environment-specific notes"
   },
+  "phases": [
+    {
+      "id": "PH-1",
+      "name": "Phase name",
+      "description": "What this phase covers",
+      "stories": ["US-001", "US-002"],
+      "journeys": ["J-1"]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "J-1",
+      "title": "User flow description",
+      "phase": "PH-1",
+      "steps": [
+        "Navigate to /path",
+        "Fill field [data-testid=field-name]",
+        "Click submit [data-testid=submit-btn]",
+        "Expect redirect to /destination",
+        "Expect element visible [data-testid=element-name]"
+      ],
+      "dependsOn": ["US-001", "US-002"]
+    }
+  ],
   "userStories": [
     {
       "id": "US-001",
@@ -35,7 +59,8 @@ Generate a complete task list JSON from the spec. The JSON schema is:
       "passes": false,
       "dependsOn": [],
       "notes": "",
-      "gate": null
+      "gate": null,
+      "e2eTestFile": null
     }
   ]
 }
@@ -50,8 +75,34 @@ Rules for generation:
 - **All `passes: false`**: the agent marks them true as it completes them
 - **Explicit dependencies**: if story B requires story A, set `"dependsOn": ["US-001"]`
 - **Testable criteria**: every acceptance criterion must be convertible to a deterministic test assertion. No vague language like "should be user-friendly" or "performant"
+- **data-testid hints in acceptance criteria**: when a criterion involves UI interaction (clicking, filling, reading), specify the `data-testid` value in the criterion text. Example: "User sees welcome banner [data-testid=welcome-banner] after login"
 
 Write the task list JSON to `__TASKS_PATH__`.
+
+### Phases
+
+Group stories into phases — logical build stages that represent functional areas:
+
+- Every story belongs to exactly one phase
+- Phases are ordered: PH-1 before PH-2, etc.
+- Infrastructure/setup stories (project init, config, schema) typically form PH-1
+- Integration validation stories form the final phase
+- A phase is "complete" when all its stories have `passes: true`
+- Avoid phases with more than 8 stories — split large phases into sub-phases
+
+### Journeys (UI projects only)
+
+If the project has a UI (web app, frontend), generate journeys — cross-story user flows that will become E2E tests:
+
+- Each journey spans at least 2 stories (single-story flows are unit tests, not journeys)
+- Steps are natural language with embedded locator hints (`[data-testid=...]`)
+- A journey's `dependsOn` lists every story that must pass before this journey is testable
+- `phase` links the journey to when it should first run
+- Keep journeys focused — one user goal per journey, 3-8 steps typical
+- Every phase with UI stories should have at least one journey
+- `data-testid` values in journey steps must appear in acceptance criteria of the stories they depend on
+
+If the project is API-only (no browser UI), omit the `journeys` array entirely. Do not generate journeys for backend-only projects.
 
 ### Integration boundaries
 
@@ -88,6 +139,10 @@ Read the existing task list at `__TASKS_PATH__` and review it against these mech
 4. **Ambiguous acceptance criteria** — criteria that can't be turned into a deterministic test assertion. Tighten with specific values, thresholds, or observable behaviours.
 5. **ID gaps or duplicates** — ensure story IDs are sequential and unique.
 6. **Gate placement** — if integration validation stories exist, exactly one should have a `gate` field on the first integration story. Fix if multiple have `gate` or if none do.
+7. **Phase completeness** — every story must belong to exactly one phase. Phases must be sequential (PH-1, PH-2, etc.) with no gaps.
+8. **Journey coverage** — every phase with UI stories must have at least one journey. Journeys must span at least 2 stories.
+9. **Journey dependencies** — each journey's `dependsOn` must include all stories referenced by its steps.
+10. **Locator consistency** — `data-testid` values in journey steps must appear in acceptance criteria of the dependent stories.
 
 Fix all mechanical issues directly in the task list JSON.
 

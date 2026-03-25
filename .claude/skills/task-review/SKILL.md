@@ -30,6 +30,12 @@ Analyse the task list against these categories:
 4. **Ambiguous acceptance criteria** — criteria that can't be turned into a deterministic test assertion. Tighten them with specific values, thresholds, or observable behaviours.
 5. **ID gaps or duplicates** — ensure story IDs are sequential and unique.
 6. **Integration gate hygiene** — if integration validation stories exist: exactly one has a `gate` field (the first), they have `dependsOn` referencing build stories, and they have `priority: "low"`.
+7. **Phase completeness** — every story belongs to a phase, phases are sequential (PH-1, PH-2, etc.) with no gaps or missing stories.
+8. **Journey coverage** — every phase with UI stories has at least one journey. Each journey spans at least 2 stories.
+9. **Journey dependencies** — each journey's `dependsOn` includes all stories referenced by its steps. The `phase` field matches the phase that contains the journey.
+10. **Locator consistency** — `data-testid` values referenced in journey steps appear in acceptance criteria of the stories they depend on. Flag missing testids.
+11. **Phase sizing** — flag phases with more than 8 stories (too large, suggest splitting).
+12. **Journey length** — flag journeys with more than 10 steps (too complex, suggest splitting).
 
 ### Human Decisions (flag these, do not fix)
 

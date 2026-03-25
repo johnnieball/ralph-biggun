@@ -34,6 +34,8 @@ run_test "test-exit-detection.sh"
 run_test "test-rate-limiting.sh"
 run_test "test-hook-blocking.sh"
 run_test "test-integration-gate.sh"
+run_test "test-e2e-gate.sh"
+run_test "test-phase-detection.sh"
 
 # Print summary
 for i in "${!TESTS[@]}"; do

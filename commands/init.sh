@@ -114,9 +114,11 @@ if [ -d "$TARGET_DIR/.ralph" ]; then
   cp "$RALPH_HOME/engine/prompt.md" "$TARGET_DIR/.ralph/engine/"
   cp "$RALPH_HOME/engine/task-build-prompt.md" "$TARGET_DIR/.ralph/engine/"
   cp "$RALPH_HOME/engine/snapshot.sh" "$TARGET_DIR/.ralph/engine/"
+  cp "$RALPH_HOME/engine/e2e-gate.sh" "$TARGET_DIR/.ralph/engine/"
   chmod +x "$TARGET_DIR/.ralph/engine/ralph.sh"
   chmod +x "$TARGET_DIR/.ralph/engine/snapshot.sh"
-  UPGRADED+=("engine/ralph.sh" "engine/prompt.md" "engine/task-build-prompt.md" "engine/snapshot.sh")
+  chmod +x "$TARGET_DIR/.ralph/engine/e2e-gate.sh"
+  UPGRADED+=("engine/ralph.sh" "engine/prompt.md" "engine/task-build-prompt.md" "engine/snapshot.sh" "engine/e2e-gate.sh")
 
   # Clean up legacy engine files
   if [ -f "$TARGET_DIR/.ralph/engine/prd-build-prompt.md" ]; then
@@ -297,8 +299,10 @@ cp "$RALPH_HOME/engine/ralph.sh" "$TARGET_DIR/.ralph/engine/"
 cp "$RALPH_HOME/engine/prompt.md" "$TARGET_DIR/.ralph/engine/"
 cp "$RALPH_HOME/engine/task-build-prompt.md" "$TARGET_DIR/.ralph/engine/"
 cp "$RALPH_HOME/engine/snapshot.sh" "$TARGET_DIR/.ralph/engine/"
+cp "$RALPH_HOME/engine/e2e-gate.sh" "$TARGET_DIR/.ralph/engine/"
 chmod +x "$TARGET_DIR/.ralph/engine/ralph.sh"
 chmod +x "$TARGET_DIR/.ralph/engine/snapshot.sh"
+chmod +x "$TARGET_DIR/.ralph/engine/e2e-gate.sh"
 
 # Skills
 cp "$RALPH_HOME"/skills/tdd/* "$TARGET_DIR/.ralph/skills/tdd/"

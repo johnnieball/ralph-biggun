@@ -54,8 +54,20 @@ if [ -n "$EXTRA_PATH" ]; then
   export PATH="$EXTRA_PATH:$PATH"
 fi
 
+# E2E testing config (overridden by config)
+E2E_ENABLED="${E2E_ENABLED:-false}"
+E2E_START_CMD="${E2E_START_CMD:-}"
+E2E_PORT="${E2E_PORT:-3000}"
+E2E_SEED_CMD="${E2E_SEED_CMD:-}"
+E2E_MAX_FAILURES="${E2E_MAX_FAILURES:-5}"
+E2E_TIMEOUT="${E2E_TIMEOUT:-900}"
+E2E_REPAIR_MAX="${E2E_REPAIR_MAX:-3}"
+
 # Export snapshot config for snapshot.sh subprocess
 export SNAPSHOT_SOURCE_DIR SNAPSHOT_FILE_EXTENSIONS SNAPSHOT_TEST_PATTERNS SNAPSHOT_PARSER
+
+# Export E2E config for e2e-gate.sh subprocess
+export E2E_ENABLED E2E_START_CMD E2E_PORT E2E_SEED_CMD E2E_MAX_FAILURES E2E_TIMEOUT E2E_REPAIR_MAX
 
 # Arguments: [iterations] [plan-name]
 if [ -n "$1" ]; then
@@ -413,6 +425,19 @@ $ralph_commits"
   if [[ "$result" == *"<promise>COMPLETE</promise>"* ]] || [[ "$result" == *"<promise>NO MORE TASKS</promise>"* ]]; then
     echo ""
     echo "Ralph complete after $i iterations."
+    # Final E2E gate
+    if [ "$E2E_ENABLED" = "true" ] && [ -x "$ENGINE_DIR/e2e-gate.sh" ]; then
+      echo "Running final E2E gate (all journeys)..."
+      set +e
+      "$ENGINE_DIR/e2e-gate.sh" --all --tasks-path "$TASKS_PATH"
+      e2e_exit=$?
+      set -e
+      if [ "$e2e_exit" -ne 0 ]; then
+        echo "Final E2E gate failed (exit $e2e_exit). Escalating to human."
+        exit_reason="e2e_gate_failed"
+        exit 1
+      fi
+    fi
     exit_reason="complete"
     exit 0
   fi
@@ -428,6 +453,19 @@ $ralph_commits"
   if [ "$exit_signal" = "true" ]; then
     echo ""
     echo "Ralph received EXIT_SIGNAL after $i iterations."
+    # Final E2E gate
+    if [ "$E2E_ENABLED" = "true" ] && [ -x "$ENGINE_DIR/e2e-gate.sh" ]; then
+      echo "Running final E2E gate (all journeys)..."
+      set +e
+      "$ENGINE_DIR/e2e-gate.sh" --all --tasks-path "$TASKS_PATH"
+      e2e_exit=$?
+      set -e
+      if [ "$e2e_exit" -ne 0 ]; then
+        echo "Final E2E gate failed (exit $e2e_exit). Escalating to human."
+        exit_reason="e2e_gate_failed"
+        exit 1
+      fi
+    fi
     exit_reason="exit_signal"
     exit 0
   fi
@@ -536,6 +574,24 @@ $ralph_commits"
   # Generate codebase snapshot between iterations
   if [ -x "$ENGINE_DIR/snapshot.sh" ]; then
     "$ENGINE_DIR/snapshot.sh" 2>/dev/null || true
+  fi
+
+  # --- Phase-end E2E gate ---
+  if [ "$E2E_ENABLED" = "true" ] && [ -x "$ENGINE_DIR/e2e-gate.sh" ]; then
+    phase_complete=$(echo "$result" | sed -n '/---RALPH_STATUS---/,/---END_RALPH_STATUS---/p' | grep -i "PHASE_COMPLETE:" | head -1 | awk '{print $2}' || echo "")
+    if [ -n "$phase_complete" ] && [ "$phase_complete" != "empty" ]; then
+      echo ""
+      echo "Phase $phase_complete complete. Running phase-end E2E gate..."
+      set +e
+      "$ENGINE_DIR/e2e-gate.sh" --phase "$phase_complete" --tasks-path "$TASKS_PATH"
+      e2e_exit=$?
+      set -e
+      if [ "$e2e_exit" -eq 2 ]; then
+        echo "E2E gate aborted (circuit breaker or timeout). Continuing build..."
+      elif [ "$e2e_exit" -ne 0 ]; then
+        echo "E2E gate failures for phase $phase_complete. Next iteration will include repair context."
+      fi
+    fi
   fi
 done
 

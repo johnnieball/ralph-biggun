@@ -56,6 +56,20 @@ If this story requires changing a shared function's signature (adding parameters
 
 Before planning your approach, quickly scan the modules you'll be touching. Check: are any functions you'll modify already over ~50 lines? Is the function signature already at 4+ parameters? Is data being threaded through multiple calls unchanged? If so, plan a refactor as part of this iteration's work rather than adding to the debt.
 
+# DATA-TESTID RULE
+
+When implementing UI elements, add `data-testid` attributes to all interactive elements (buttons, inputs, links, forms). Use descriptive kebab-case names. This is required for E2E testing. Non-negotiable for any story that involves UI.
+
+# E2E TEST GENERATION
+
+After completing a story, check if any journey in `__TASKS_PATH__` now has all its `dependsOn` stories passing. If so:
+
+1. Generate the Playwright test file in `e2e/` — one file per journey, named `e2e/j-NNN-kebab-title.spec.ts`
+2. Record the test file path in the story's `e2eTestFile` field
+3. Write the test but do NOT execute it — the E2E runner handles execution at phase boundaries
+
+Use semantic locators: `getByRole('button', { name: 'Submit' })` preferred, `getByTestId('submit')` as fallback. Test user-visible behaviour, not implementation.
+
 # RED (Write Failing Test)
 
 Write ONE failing test for the current task.
@@ -201,9 +215,14 @@ FILES_MODIFIED: <number>
 TESTS_STATUS: PASSING | FAILING | NOT_RUN
 WORK_TYPE: IMPLEMENTATION | TESTING | DOCUMENTATION | REFACTORING
 EXIT_SIGNAL: false | true
+PHASE_COMPLETE: <PH-X or empty>
 RECOMMENDATION: <one line summary of what to do next>
 ---END_RALPH_STATUS---
 ```
+
+## Phase completion detection
+
+After marking a story as `passes: true`, check if all stories in its phase now pass. If so, set `PHASE_COMPLETE: PH-X` in the RALPH_STATUS block (where X is the completed phase). Otherwise leave it empty. Ralph uses this signal to trigger phase-end E2E tests.
 
 ## When to set EXIT_SIGNAL: true
 
