@@ -4,9 +4,10 @@
 # Usage: ralph <command> [options]
 #
 # Commands:
-#   init [--stack <preset>] [target-dir]         — Initialise Ralph in a project
-#   run [iterations] [plan-name]                 — Start the autonomous loop
-#   task-build <spec-file> [plan-name] [max-iter] — Generate task list from spec
+#   init [--stack <preset>] [--upgrade] [target-dir] — Initialise or upgrade Ralph
+#   run [iterations] [plan-name]                     — Start the autonomous loop
+#   task-build <spec-file> [plan-name] [max-iter]    — Generate task list from spec
+#   upgrade [--stack <preset>] [target-dir]           — Shorthand for init --upgrade
 
 RALPH_HOME="$(cd "$(dirname "$0")" && pwd)"
 
@@ -23,11 +24,16 @@ case "${1:-}" in
     shift
     exec "$RALPH_HOME/commands/task-build.sh" "$@"
     ;;
+  upgrade)
+    shift
+    exec "$RALPH_HOME/commands/init.sh" --upgrade "$@"
+    ;;
   *)
     echo "Usage: ralph <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  init [--stack <preset>] [dir]              Initialise Ralph in a project"
+    echo "  init [--stack <preset>] [--upgrade] [dir]  Initialise or upgrade Ralph"
+    echo "  upgrade [--stack <preset>] [dir]           Shorthand for init --upgrade"
     echo "  run [iterations] [plan-name]               Start the autonomous loop"
     echo "  task-build <spec> [plan-name] [max-iter]   Generate task list from spec file"
     echo ""

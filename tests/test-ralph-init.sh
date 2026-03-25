@@ -8,6 +8,7 @@ FAIL=0
 TMPDIR_PATHS=()
 
 source "$SCRIPT_DIR/lib/assert.sh"
+source "$REPO_ROOT/lib/utils.sh"
 
 cleanup() {
   for d in "${TMPDIR_PATHS[@]}"; do
@@ -136,9 +137,9 @@ set -e
 assert_file_contains "settings.json has existing hook" "$tmpdir/.claude/settings.json" "existing"
 assert_file_contains "settings.json has ralph hook" "$tmpdir/.claude/settings.json" ".ralph/hooks/block-dangerous-git.sh"
 
-# --- Test 7: Refuse to init twice ---
+# --- Test 7: Refuse to init twice (suggests --upgrade) ---
 echo ""
-echo "Test: Refuses to init when .ralph/ exists"
+echo "Test: Refuses to init when .ralph/ exists, suggests --upgrade"
 
 tmpdir=$(setup_temp_project)
 "$REPO_ROOT/ralph" init "$tmpdir" > /dev/null 2>&1
@@ -149,6 +150,7 @@ code=$?
 set -e
 
 assert_true "exits with error" test "$code" -ne 0
+assert_output_contains "suggests --upgrade" "$output" "--upgrade"
 
 # --- Test 8: .gitignore entries ---
 echo ""
@@ -216,6 +218,159 @@ else
   echo "  FAIL: CLAUDE.md directive appears $directive_count times (expected 1)"
   FAIL=$(( FAIL + 1 ))
 fi
+
+# =====================
+# Upgrade Tests
+# =====================
+
+# --- Test 12: Basic upgrade updates engine files ---
+echo ""
+echo "Test: Upgrade updates engine files"
+
+tmpdir=$(setup_temp_project)
+"$REPO_ROOT/ralph" init "$tmpdir" > /dev/null 2>&1
+
+# Corrupt an engine file to verify it gets replaced
+echo "OLD CONTENT" > "$tmpdir/.ralph/engine/ralph.sh"
+
+set +e
+output=$("$REPO_ROOT/ralph" init --upgrade "$tmpdir" 2>&1)
+code=$?
+set -e
+
+assert_true "upgrade exits successfully" test "$code" -eq 0
+assert_false "engine/ralph.sh no longer has old content" grep -q "OLD CONTENT" "$tmpdir/.ralph/engine/ralph.sh"
+assert_true "engine/ralph.sh has real content" test -s "$tmpdir/.ralph/engine/ralph.sh"
+assert_output_contains "output mentions upgrade" "$output" "Upgrade complete"
+
+# --- Test 13: Upgrade preserves progress.txt ---
+echo ""
+echo "Test: Upgrade preserves progress.txt"
+
+tmpdir=$(setup_temp_project)
+"$REPO_ROOT/ralph" init "$tmpdir" > /dev/null 2>&1
+echo "MY CUSTOM PROGRESS" > "$tmpdir/.ralph/progress.txt"
+
+set +e
+output=$("$REPO_ROOT/ralph" init --upgrade "$tmpdir" 2>&1)
+code=$?
+set -e
+
+assert_true "upgrade exits successfully" test "$code" -eq 0
+assert_file_contains "progress.txt preserved" "$tmpdir/.ralph/progress.txt" "MY CUSTOM PROGRESS"
+
+# --- Test 14: Upgrade preserves config.sh values ---
+echo ""
+echo "Test: Upgrade preserves config.sh custom values"
+
+tmpdir=$(setup_temp_project)
+"$REPO_ROOT/ralph" init "$tmpdir" > /dev/null 2>&1
+echo 'MAX_ITERATIONS=99' >> "$tmpdir/.ralph/config.sh"
+
+set +e
+output=$("$REPO_ROOT/ralph" init --upgrade "$tmpdir" 2>&1)
+code=$?
+set -e
+
+assert_true "upgrade exits successfully" test "$code" -eq 0
+assert_file_contains "config.sh retains custom value" "$tmpdir/.ralph/config.sh" "MAX_ITERATIONS=99"
+
+# --- Test 15: Upgrade renames prd-*.json → tasks-*.json ---
+echo ""
+echo "Test: Upgrade migrates prd-*.json to tasks-*.json"
+
+tmpdir=$(setup_temp_project)
+"$REPO_ROOT/ralph" init "$tmpdir" > /dev/null 2>&1
+echo '{"stories":[]}' > "$tmpdir/.ralph/specs/prd-MY_PLAN.json"
+
+set +e
+output=$("$REPO_ROOT/ralph" init --upgrade "$tmpdir" 2>&1)
+code=$?
+set -e
+
+assert_true "upgrade exits successfully" test "$code" -eq 0
+assert_false "old prd file removed" test -f "$tmpdir/.ralph/specs/prd-MY_PLAN.json"
+assert_true "new tasks file exists" test -f "$tmpdir/.ralph/specs/tasks-MY_PLAN.json"
+assert_file_contains "tasks file has original content" "$tmpdir/.ralph/specs/tasks-MY_PLAN.json" '{"stories":[]}'
+assert_output_contains "output mentions migration" "$output" "prd-MY_PLAN.json"
+
+# --- Test 16: Upgrade removes legacy prd-build-prompt.md ---
+echo ""
+echo "Test: Upgrade removes legacy prd-build-prompt.md"
+
+tmpdir=$(setup_temp_project)
+"$REPO_ROOT/ralph" init "$tmpdir" > /dev/null 2>&1
+echo "OLD PROMPT" > "$tmpdir/.ralph/engine/prd-build-prompt.md"
+
+set +e
+output=$("$REPO_ROOT/ralph" init --upgrade "$tmpdir" 2>&1)
+code=$?
+set -e
+
+assert_true "upgrade exits successfully" test "$code" -eq 0
+assert_false "prd-build-prompt.md removed" test -f "$tmpdir/.ralph/engine/prd-build-prompt.md"
+assert_true "task-build-prompt.md exists" test -f "$tmpdir/.ralph/engine/task-build-prompt.md"
+
+# --- Test 17: Upgrade patches config.sh prd comment ---
+echo ""
+echo "Test: Upgrade patches stale prd comment in config.sh"
+
+tmpdir=$(setup_temp_project)
+"$REPO_ROOT/ralph" init "$tmpdir" > /dev/null 2>&1
+# Simulate old config comment
+portable_sed 's|tasks-<name>\.json|prd-<name>.json|g' "$tmpdir/.ralph/config.sh"
+
+set +e
+output=$("$REPO_ROOT/ralph" init --upgrade "$tmpdir" 2>&1)
+code=$?
+set -e
+
+assert_true "upgrade exits successfully" test "$code" -eq 0
+assert_file_contains "config comment updated" "$tmpdir/.ralph/config.sh" "tasks-<name>.json"
+
+# --- Test 18: Upgrade preserves user's architecture.md ---
+echo ""
+echo "Test: Upgrade preserves filled-in architecture.md"
+
+tmpdir=$(setup_temp_project)
+"$REPO_ROOT/ralph" init "$tmpdir" > /dev/null 2>&1
+echo "# My Architecture" > "$tmpdir/.ralph/specs/architecture.md"
+
+set +e
+output=$("$REPO_ROOT/ralph" init --upgrade "$tmpdir" 2>&1)
+code=$?
+set -e
+
+assert_true "upgrade exits successfully" test "$code" -eq 0
+assert_file_contains "architecture.md preserved" "$tmpdir/.ralph/specs/architecture.md" "# My Architecture"
+
+# --- Test 19: ralph upgrade shorthand works ---
+echo ""
+echo "Test: ralph upgrade shorthand"
+
+tmpdir=$(setup_temp_project)
+"$REPO_ROOT/ralph" init "$tmpdir" > /dev/null 2>&1
+
+set +e
+output=$("$REPO_ROOT/ralph" upgrade "$tmpdir" 2>&1)
+code=$?
+set -e
+
+assert_true "upgrade shorthand exits successfully" test "$code" -eq 0
+assert_output_contains "shorthand output mentions upgrade" "$output" "Upgrade complete"
+
+# --- Test 20: Upgrade without existing .ralph/ fails ---
+echo ""
+echo "Test: Upgrade fails gracefully when no .ralph/ exists"
+
+tmpdir=$(setup_temp_project)
+
+set +e
+output=$("$REPO_ROOT/ralph" init --upgrade "$tmpdir" 2>&1)
+code=$?
+set -e
+
+assert_true "exits with error" test "$code" -ne 0
 
 # --- Summary ---
 print_summary "Init tests"

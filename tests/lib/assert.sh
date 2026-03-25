@@ -53,12 +53,23 @@ assert_file_contains() {
 # Check that a string variable contains a literal substring (grep -qF)
 assert_output_contains() {
   local label="$1" haystack="$2" needle="$3"
-  if echo "$haystack" | grep -qF "$needle"; then
+  if echo "$haystack" | grep -qF -- "$needle"; then
     echo "  PASS: $label"
     PASS=$(( PASS + 1 ))
   else
     echo "  FAIL: $label (expected to find '$needle')"
     FAIL=$(( FAIL + 1 ))
+  fi
+}
+
+assert_output_not_contains() {
+  local label="$1" haystack="$2" needle="$3"
+  if echo "$haystack" | grep -qF -- "$needle"; then
+    echo "  FAIL: $label (expected NOT to find '$needle')"
+    FAIL=$(( FAIL + 1 ))
+  else
+    echo "  PASS: $label"
+    PASS=$(( PASS + 1 ))
   fi
 }
 
