@@ -13,6 +13,10 @@ Don't mock:
 - Internal collaborators
 - Anything you control
 
+## Integration tests
+
+Tests that intentionally cross module boundaries (verifying real interactions between your own modules) belong in `src/__integration__/`, not alongside unit tests. These are exempt from import boundary enforcement. Use them when you need to verify data flows through multiple layers with real implementations — but keep unit tests as the primary feedback loop.
+
 ## Designing for Mockability
 
 At system boundaries, design interfaces that are easy to mock:
@@ -43,7 +47,7 @@ Create specific functions for each external operation instead of one generic fun
 const api = {
   getUser: (id) => fetch(`/users/${id}`),
   getOrders: (userId) => fetch(`/users/${userId}/orders`),
-  createOrder: (data) => fetch('/orders', { method: 'POST', body: data }),
+  createOrder: (data) => fetch("/orders", { method: "POST", body: data }),
 };
 
 // BAD: Mocking requires conditional logic inside the mock
@@ -53,6 +57,7 @@ const api = {
 ```
 
 The SDK approach means:
+
 - Each mock returns one specific shape
 - No conditional logic in test setup
 - Easier to see which endpoints a test exercises

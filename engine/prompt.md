@@ -8,13 +8,14 @@ Read these files in order:
 
 The last 10 RALPH commits (SHA, date, full message) have been appended to the bottom of this prompt by ralph.sh. Review them to understand what work has been done recently and avoid duplicating effort.
 
-4. `codebase-snapshot.md` — If this file exists, read it. It contains a deterministic snapshot of the codebase generated between iterations: file tree, public exports, import graph, test counts, and alerts. Compare the import graph against `__SPECS_DIR__/architecture.md` dependency rules. Flag any violations in your iteration notes.
+4. `codebase-snapshot.md` — If this file exists, read it. It contains a deterministic snapshot of the codebase generated between iterations: file tree, public exports, import graph, test counts, and alerts. Compare the import graph against dependency rules from **both** `CLAUDE.md` and `__SPECS_DIR__/architecture.md`. Flag any violations in your iteration notes.
 
 5. `__SPECS_DIR__/architecture.md` — If this file contains only HTML comment placeholders (`<!-- Generated from task list`), populate it before starting story work:
    - Read `__TASKS_PATH__` and identify the modules, their responsibilities, and dependency direction
    - Fill in Modules, Dependency Rules, and Hard Constraints with concrete entries
    - Keep it under 20 lines total
-   - Commit as `RALPH: chore: populate architecture.md from task list` before starting the first story
+   - **Create a boundary enforcement test** (e.g. `src/__tests__/architecture.test.ts` or equivalent for the stack) that parses source files and asserts the dependency rules from architecture.md are not violated. This test runs as part of `__TEST_CMD__` and provides deterministic back-pressure — you cannot accidentally bypass a test that fails the build. The test should: read source files, extract imports, and assert that no module imports from a disallowed module per the rules you just wrote.
+   - Commit as `RALPH: chore: populate architecture.md and boundary enforcement` before starting the first story
      If architecture.md is already populated, read it and check planned changes against the dependency rules.
 
 6. `.gitignore` — On the first iteration, review `.gitignore` against the task list's tech stack. The template covers common patterns (node_modules, .next, .env, data/, coverage, etc.). If the task list specifies additional technology (e.g. Python venv, Rust target/, Go bin/, specific database files), append the relevant patterns. Do this in the same commit as the architecture.md population. Do NOT remove existing entries — only add missing ones.
@@ -42,7 +43,7 @@ ONE task per iteration - this is non-negotiable. Do not batch. Do not "quickly k
 
 Explore the repo and fill your context window with relevant information that will allow you to complete the task.
 
-If `codebase-snapshot.md` exists, check its import graph against `__SPECS_DIR__/architecture.md` dependency rules. If you spot violations in modules you're about to touch, fix them as part of this iteration.
+If `codebase-snapshot.md` exists, check its import graph against dependency rules from **both** `CLAUDE.md` and `__SPECS_DIR__/architecture.md`. If you spot violations in modules you're about to touch, fix them as part of this iteration.
 
 Read existing tests to understand testing patterns before writing new ones. Look at naming conventions, assertion styles, test structure, and how mocks (if any) are used.
 
@@ -59,6 +60,17 @@ Before planning your approach, quickly scan the modules you'll be touching. Chec
 # DATA-TESTID RULE
 
 When implementing UI elements, add `data-testid` attributes to all interactive elements (buttons, inputs, links, forms). Use descriptive kebab-case names. This is required for E2E testing. Non-negotiable for any story that involves UI.
+
+# INTEGRATION TEST CONVENTION
+
+Tests that **intentionally cross module boundaries** (e.g. testing that module A correctly calls module B's real implementation, verifying data flows through multiple layers) are integration tests, not unit tests. They live in a dedicated directory:
+
+- `src/__integration__/` for projects with a `src/` directory
+- `integration/` at the top level for brownfield or non-src layouts
+
+Do NOT co-locate integration tests alongside unit tests in module directories. The separation makes it obvious which tests are allowed to cross boundaries and which should not. Unit tests in module directories must respect import boundaries; integration tests in `__integration__/` are explicitly exempt.
+
+When writing integration tests, name files descriptively: `<flow-or-feature>.integration.test.ts`. The boundary enforcement test (from architecture population) should whitelist the `__integration__/` directory.
 
 # E2E TEST GENERATION
 
