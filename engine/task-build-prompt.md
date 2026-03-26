@@ -14,6 +14,7 @@ Generate a complete task list JSON from the spec. The JSON schema is:
 ```json
 {
   "project": "project-name",
+  "storyPrefix": "PN",
   "branchName": "feature/project-name",
   "description": "One-line project description",
   "techStack": ["list", "of", "technologies"],
@@ -22,12 +23,18 @@ Generate a complete task list JSON from the spec. The JSON schema is:
     "testFramework": "e.g. vitest, pytest",
     "notes": "any environment-specific notes"
   },
+  "requiredEnv": [
+    {
+      "var": "ENV_VAR_NAME",
+      "for": "what needs this variable (e.g. Integration tests US-005)"
+    }
+  ],
   "phases": [
     {
       "id": "PH-1",
       "name": "Phase name",
       "description": "What this phase covers",
-      "stories": ["US-001", "US-002"],
+      "stories": ["PN-001", "PN-002"],
       "journeys": ["J-1"]
     }
   ],
@@ -43,12 +50,12 @@ Generate a complete task list JSON from the spec. The JSON schema is:
         "Expect redirect to /destination",
         "Expect element visible [data-testid=element-name]"
       ],
-      "dependsOn": ["US-001", "US-002"]
+      "dependsOn": ["PN-001", "PN-002"]
     }
   ],
   "userStories": [
     {
-      "id": "US-001",
+      "id": "PN-001",
       "title": "Short story title",
       "description": "What this story delivers",
       "acceptanceCriteria": [
@@ -68,12 +75,13 @@ Generate a complete task list JSON from the spec. The JSON schema is:
 
 Rules for generation:
 
+- **Story prefix**: Derive `storyPrefix` from the `project` field by taking the first letter of each hyphen-separated word and uppercasing it (e.g. `deck-manipulation` → `DM`, `visual-design-system` → `VDS`, `my-app` → `MA`). Before committing to the prefix, run `git log --oneline | grep '{PREFIX}-'` to check for existing use. If a clash is found, append a single digit to disambiguate (e.g. `DM` → `DM2`). Store the chosen prefix in the top-level `storyPrefix` field. Use it in all story IDs, `dependsOn` references, phase `stories` arrays, journey `dependsOn` arrays, and commit messages. Format: `{PREFIX}-{NNN}`.
 - **Vertical slices**: each story delivers a thin, end-to-end piece of functionality
 - **Max 5 acceptance criteria** per story — split larger stories
 - **Infrastructure first**: project setup, config, schema stories come before feature stories
-- **Sequential IDs**: US-001, US-002, US-003, etc. with no gaps
+- **Sequential IDs**: {PREFIX}-001, {PREFIX}-002, {PREFIX}-003, etc. with no gaps (where {PREFIX} is the `storyPrefix` value)
 - **All `passes: false`**: the agent marks them true as it completes them
-- **Explicit dependencies**: if story B requires story A, set `"dependsOn": ["US-001"]`
+- **Explicit dependencies**: if story B requires story A, set `"dependsOn": ["{PREFIX}-001"]`
 - **Testable criteria**: every acceptance criterion must be convertible to a deterministic test assertion. No vague language like "should be user-friendly" or "performant"
 - **data-testid hints in acceptance criteria**: when a criterion involves UI interaction (clicking, filling, reading), specify the `data-testid` value in the criterion text. Example: "User sees welcome banner [data-testid=welcome-banner] after login"
 
@@ -129,11 +137,20 @@ Rules:
 
 If the spec has no external integration, do not add integration stories or use the gate field.
 
+### Required environment variables
+
+When integration stories reference environment variables (API keys, database URLs, service endpoints), declare them in the top-level `requiredEnv` array. Ralph validates these before the loop starts — missing variables cause an immediate, actionable failure instead of a surprise 100+ iterations later.
+
+- `var` — the environment variable name (e.g. `MY_API_KEY`)
+- `for` — human-readable description shown in the error message (e.g. `"Integration tests (US-005, US-006)"`)
+- Only declare variables the build actually reads at runtime. Do not list optional or test-only convenience vars.
+- If the spec has no external integration, omit `requiredEnv` entirely (or leave it as an empty array).
+
 ## If task list already exists (iteration 2+)
 
 Read the existing task list at `__TASKS_PATH__` and review it against these mechanical criteria:
 
-1. **Oversized stories** — any story with more than 5 acceptance criteria must be split. Use a/b suffixes (US-012 → US-012a, US-012b). Update all `dependsOn` references.
+1. **Oversized stories** — any story with more than 5 acceptance criteria must be split. Use a/b suffixes ({PREFIX}-012 → {PREFIX}-012a, {PREFIX}-012b). Update all `dependsOn` references.
 2. **Missing infrastructure stories** — stories that assume setup (project init, config, schema, database migrations) without a prior story providing it. Add infrastructure stories at the start and renumber.
 3. **Implicit dependencies** — stories that must be done in a specific order but don't declare `dependsOn`. Add the dependency where the ordering is unambiguous.
 4. **Ambiguous acceptance criteria** — criteria that can't be turned into a deterministic test assertion. Tighten with specific values, thresholds, or observable behaviours.

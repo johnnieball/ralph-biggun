@@ -42,6 +42,7 @@ run_test "test-summary-line.sh"
 run_test "test-detect-rate-limit.sh"
 run_test "test-cli-args.sh"
 run_test "test-progress-archive.sh"
+run_test "test-preflight.sh"
 
 # Print summary
 for i in "${!TESTS[@]}"; do

@@ -112,6 +112,68 @@ fi
 
 echo "Using tasks: $TASKS_PATH"
 
+# --- Pre-flight environment check ---
+# Runs BEFORE logging/archiving so failures are visible within seconds of launch.
+# The user often fires `ralph run` and walks away — silent blocking is the worst case.
+preflight_env_check() {
+  if [ "${RALPH_SKIP_PREFLIGHT:-0}" = "1" ]; then return 0; fi
+
+  local required
+  required=$(jq -r '.requiredEnv[]?.var // empty' "$TASKS_PATH" 2>/dev/null)
+  [ -z "$required" ] && return 0
+
+  local failures=0
+  local report=""
+
+  while IFS= read -r var_name; do
+    [ -z "$var_name" ] && continue
+
+    # Validate: must be a legal shell identifier (guards against regex injection
+    # in the grep below and invalid indirect expansion via ${!var_name})
+    if ! [[ "$var_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+      echo "WARNING: requiredEnv entry '$var_name' is not a valid variable name — skipped"
+      continue
+    fi
+
+    local for_desc
+    for_desc=$(jq -r --arg v "$var_name" '.requiredEnv[] | select(.var == $v) | .["for"] // ""' "$TASKS_PATH" 2>/dev/null)
+
+    if [ -n "${!var_name+x}" ]; then
+      # Variable is set in the process environment (even if empty) — OK
+      continue
+    fi
+
+    # Check .env file in project root (handles both VAR=val and export VAR=val)
+    if [ -f ".env" ] && grep -qE "^(export[[:space:]]+)?${var_name}=" ".env" 2>/dev/null; then
+      report+="  ✗ $var_name — found in .env but NOT loaded into the process"$'\n'
+      [ -n "$for_desc" ] && report+="    needed for: $for_desc"$'\n'
+      report+="    fix: source .env before running ralph, or ensure your test framework loads .env"$'\n'
+    else
+      report+="  ✗ $var_name — not defined in environment or .env"$'\n'
+      [ -n "$for_desc" ] && report+="    needed for: $for_desc"$'\n'
+      report+="    fix: export $var_name=<value> or add it to .env"$'\n'
+    fi
+    failures=$(( failures + 1 ))
+  done <<< "$required"
+
+  if [ "$failures" -gt 0 ]; then
+    echo ""
+    echo "═══════════════════════════════════════════════════"
+    echo "  PRE-FLIGHT CHECK FAILED"
+    echo "═══════════════════════════════════════════════════"
+    echo ""
+    echo "$failures required environment variable(s) not resolvable:"
+    echo ""
+    printf '%s' "$report"
+    echo ""
+    echo "Set RALPH_SKIP_PREFLIGHT=1 to bypass this check."
+    echo "═══════════════════════════════════════════════════"
+    exit 1
+  fi
+}
+
+preflight_env_check
+
 # Read story prefix from task list (falls back to "US" for legacy task lists)
 STORY_PREFIX=$(jq -r '.storyPrefix // "US"' "$TASKS_PATH" 2>/dev/null || echo "US")
 
