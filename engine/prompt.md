@@ -178,6 +178,21 @@ The Gate Function:
 
 If anything fails, fix it before committing. Do NOT commit broken code.
 
+## Test process hygiene
+
+Tests MUST exit cleanly. Any test that spawns subprocesses (browsers, servers,
+workers) must have robust teardown:
+
+- Wrap cleanup in try/catch with a timeout fallback
+- Never leave open handles (servers, sockets, file watchers) after a test run
+- If using a test framework config (vitest.config.ts, jest.config.ts), ensure
+  `forceExit: true` (or equivalent) is set so the runner exits even if handles leak
+- Browser automation (Puppeteer, Playwright) cleanup must have error handling —
+  if browser.close() hangs, the test process hangs forever
+
+If you create or modify tests that spawn subprocesses, verify the test runner
+exits with code 0 and no orphaned processes remain.
+
 # COMMIT
 
 Update the task list first: set `passes: true` for the completed story in `__TASKS_PATH__`. This must be included in the same commit.

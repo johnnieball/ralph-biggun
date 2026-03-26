@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -m  # Job control: background jobs get own process group (PID == PGID)
 
 # Architecture note: FRESH CONTEXT PER ITERATION
 # ================================================
@@ -25,13 +26,14 @@ fi
 
 # Defaults (overridden by config)
 MAX_CALLS_PER_HOUR=${MAX_CALLS_PER_HOUR:-60}
-MAX_ITERATIONS=${MAX_ITERATIONS:-20}
+MAX_ITERATIONS=${MAX_ITERATIONS:-}
 CB_NO_PROGRESS_THRESHOLD=${CB_NO_PROGRESS_THRESHOLD:-3}
 CB_SAME_ERROR_THRESHOLD=${CB_SAME_ERROR_THRESHOLD:-5}
 RALPH_MAX_RETRIES=${RALPH_MAX_RETRIES:-3}
 RALPH_RETRY_BACKOFF=${RALPH_RETRY_BACKOFF:-30}
 RATE_LIMIT_WAIT=${RATE_LIMIT_WAIT:-120}
 RATE_LIMIT_MAX_RETRIES=${RATE_LIMIT_MAX_RETRIES:-5}
+ITER_TIMEOUT_SECS=${ITER_TIMEOUT_SECS:-600}  # Max seconds per iteration (0 = no limit)
 
 # Directory and command config (overridden by config)
 ENGINE_DIR="${ENGINE_DIR:-engine}"
@@ -106,6 +108,14 @@ fi
 
 echo "Using tasks: $TASKS_PATH"
 
+# Compute iteration budget from task list if not explicitly set
+if [ -z "$MAX_ITERATIONS" ]; then
+  remaining=$(jq '[.userStories[] | select(.passes != true)] | length' "$TASKS_PATH" 2>/dev/null || echo "0")
+  computed=$(( (remaining * 13 + 9) / 10 ))
+  MAX_ITERATIONS=$(( computed > 5 ? computed : 5 ))
+  echo "Computed iteration budget: $MAX_ITERATIONS ($remaining stories remaining × 1.3)"
+fi
+
 # Automatic log file — mirror all output to timestamped log
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/ralph-$(date +%Y%m%d-%H%M%S).log"
@@ -125,6 +135,7 @@ last_ralph_sha=""
 completed_iterations=0
 cb_activation_count=0
 rate_limit_total=0
+iter_timeout_count=0
 exit_reason="max_iterations"
 last_test_count="?"
 declare -a story_ids story_elapsed story_names story_acs
@@ -215,6 +226,7 @@ print_run_summary() {
   echo "Total time:         $(fmt_time $end_elapsed)"
   echo "Total tests:        $last_test_count"
   echo "CB activations:     $cb_activation_count"
+  echo "Iter timeouts:      $iter_timeout_count"
   echo "Rate limit retries: $rate_limit_total"
   echo "Log file:           $LOG_FILE"
 
@@ -261,8 +273,42 @@ print_run_summary() {
 echo "Starting Ralph - Max iterations: $MAX_ITERATIONS"
 echo "Log file: $LOG_FILE"
 
+# --- Process group management ---
+# Each iteration's claude pipeline runs as a background job (via set -m),
+# giving it its own process group. This allows us to kill the entire tree
+# (claude + grep + tee + jq + any child processes like test runners/browsers)
+# when an iteration ends or times out.
+
+PIPELINE_PGID=0
+
+kill_process_group() {
+  local pgid=$1
+  [ "$pgid" -gt 0 ] 2>/dev/null || return 0
+  # SIGTERM the entire group
+  kill -- -"$pgid" 2>/dev/null || true
+  # Grace period for cleanup
+  local waited=0
+  while [ "$waited" -lt 3 ]; do
+    kill -0 -"$pgid" 2>/dev/null || return 0
+    sleep 1
+    waited=$(( waited + 1 ))
+  done
+  # Escalate to SIGKILL
+  kill -9 -- -"$pgid" 2>/dev/null || true
+}
+
 TMPFILES=()
-trap 'print_run_summary 2>/dev/null; rm -f "${TMPFILES[@]}"' EXIT
+
+cleanup_all() {
+  kill_process_group "$PIPELINE_PGID"
+  PIPELINE_PGID=0
+  print_run_summary 2>/dev/null
+  rm -f "${TMPFILES[@]}"
+}
+
+trap 'cleanup_all' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 loop_start=$(date +%s)
 gate_cleared=false
@@ -345,16 +391,60 @@ $ralph_commits"
 
     for (( attempt=1; attempt<=RALPH_MAX_RETRIES; attempt++ )); do
       > "$tmpfile"
+      iter_timed_out=false
 
+      # Run pipeline as background job — gets own process group via set -m
+      (
+        "${claude_cmd[@]}" \
+          | grep --line-buffered '^{' \
+          | tee "$tmpfile" \
+          | jq --unbuffered -rj "$stream_text"
+      ) &
+      PIPELINE_PGID=$!
+
+      # Watchdog: kill pipeline if iteration exceeds timeout
+      WATCHDOG_PID=0
+      if [ "${ITER_TIMEOUT_SECS:-0}" -gt 0 ] 2>/dev/null; then
+        (
+          sleep "$ITER_TIMEOUT_SECS"
+          echo ""
+          echo "ITERATION TIMEOUT: ${ITER_TIMEOUT_SECS}s exceeded. Killing pipeline..."
+          kill -- -"$PIPELINE_PGID" 2>/dev/null || true
+          sleep 3
+          kill -9 -- -"$PIPELINE_PGID" 2>/dev/null || true
+        ) &
+        WATCHDOG_PID=$!
+      fi
+
+      # Wait for pipeline to finish (or be killed by watchdog/signal)
       set +e
-      "${claude_cmd[@]}" \
-        | grep --line-buffered '^{' \
-        | tee "$tmpfile" \
-        | jq --unbuffered -rj "$stream_text"
+      wait "$PIPELINE_PGID" 2>/dev/null
+      pipeline_exit=$?
       set -e
+
+      # Clean up watchdog
+      if [ "$WATCHDOG_PID" -ne 0 ]; then
+        kill "$WATCHDOG_PID" 2>/dev/null || true
+        wait "$WATCHDOG_PID" 2>/dev/null || true
+      fi
+
+      # Detect timeout (SIGTERM=143, SIGKILL=137)
+      if [ "$pipeline_exit" -eq 143 ] || [ "$pipeline_exit" -eq 137 ]; then
+        iter_timed_out=true
+        iter_timeout_count=$(( iter_timeout_count + 1 ))
+        echo "Pipeline killed (exit $pipeline_exit). Cleaning up orphaned processes..."
+        kill_process_group "$PIPELINE_PGID"
+      fi
+      PIPELINE_PGID=0
 
       if [ -s "$tmpfile" ]; then
         claude_ok=true
+        break
+      fi
+
+      # Don't retry after timeout — likely systemic, not transient
+      if [ "$iter_timed_out" = true ]; then
+        echo "Skipping retries due to timeout."
         break
       fi
 

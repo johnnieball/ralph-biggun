@@ -7,8 +7,8 @@ RALPH_PLAN=
 # Maximum API calls per hour (rate limiting)
 MAX_CALLS_PER_HOUR=60
 
-# Maximum iterations before stopping
-MAX_ITERATIONS=20
+# Maximum iterations before stopping (leave unset to auto-compute from task list)
+# MAX_ITERATIONS=20
 
 # Circuit breaker: halt after N loops with no file changes
 CB_NO_PROGRESS_THRESHOLD=3
@@ -21,6 +21,9 @@ RATE_LIMIT_WAIT=120
 
 # Rate limit resilience: max retries before giving up on rate-limited iteration
 RATE_LIMIT_MAX_RETRIES=5
+
+# Iteration timeout: max seconds per claude pipeline invocation (0 = no limit)
+# ITER_TIMEOUT_SECS=600
 
 # Allowed tools for Claude Code (granular git subcommands for safety)
 ALLOWED_TOOLS="Write,Read,Edit,Bash(git add *),Bash(git commit *),Bash(git diff *),Bash(git log *),Bash(git status),Bash(git status *),Bash(bun *),Bash(bunx *)"
