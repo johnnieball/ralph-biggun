@@ -74,6 +74,10 @@ export E2E_ENABLED E2E_START_CMD E2E_PORT E2E_SEED_CMD E2E_MAX_FAILURES E2E_TIME
 # Arguments: [iterations] [plan-name]  or  [plan-name]
 if [ -n "$1" ]; then
   if [[ "$1" =~ ^[0-9]+$ ]]; then
+    if [ "$1" -eq 0 ]; then
+      echo "ERROR: Iteration count must be at least 1."
+      exit 1
+    fi
     MAX_ITERATIONS="$1"
     if [ -n "$2" ]; then
       RALPH_PLAN="$2"

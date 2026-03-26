@@ -40,6 +40,7 @@ run_test "test-status-parsing.sh"
 run_test "test-task-json-contract.sh"
 run_test "test-summary-line.sh"
 run_test "test-detect-rate-limit.sh"
+run_test "test-cli-args.sh"
 
 # Print summary
 for i in "${!TESTS[@]}"; do
