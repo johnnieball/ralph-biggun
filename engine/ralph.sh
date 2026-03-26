@@ -71,17 +71,17 @@ export SNAPSHOT_SOURCE_DIR SNAPSHOT_FILE_EXTENSIONS SNAPSHOT_TEST_PATTERNS SNAPS
 # Export E2E config for e2e-gate.sh subprocess
 export E2E_ENABLED E2E_START_CMD E2E_PORT E2E_SEED_CMD E2E_MAX_FAILURES E2E_TIMEOUT E2E_REPAIR_MAX
 
-# Arguments: [iterations] [plan-name]
+# Arguments: [iterations] [plan-name]  or  [plan-name]
 if [ -n "$1" ]; then
   if [[ "$1" =~ ^[0-9]+$ ]]; then
     MAX_ITERATIONS="$1"
+    if [ -n "$2" ]; then
+      RALPH_PLAN="$2"
+    fi
   else
-    echo "Usage: $0 [iterations] [plan-name]"
-    exit 1
+    # Non-numeric first arg → treat as plan name (iterations auto-computed)
+    RALPH_PLAN="$1"
   fi
-fi
-if [ -n "$2" ]; then
-  RALPH_PLAN="$2"
 fi
 
 # Resolve task file path: CLI arg > RALPH_PLAN config
