@@ -10,7 +10,7 @@ set -e
 RALPH_HOME="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Source configuration (detect layout)
-RALPH_CONFIG="${RALPH_CONFIG:-.ralphrc}"
+RALPH_CONFIG="${RALPH_CONFIG:-./.ralphrc}"
 if [ ! -f "$RALPH_CONFIG" ] && [ -f ".ralph/config.sh" ]; then
   RALPH_CONFIG=".ralph/config.sh"
 fi

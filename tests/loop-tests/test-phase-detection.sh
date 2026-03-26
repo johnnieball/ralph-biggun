@@ -40,6 +40,9 @@ setup_temp_repo() {
   chmod +x "$tmpdir/bin/claude"
   export PATH="$tmpdir/bin:$PATH"
   export RALPH_SKIP_KICKOFF=1
+  export RALPH_LOG_FILE="$tmpdir/logs/ralph-test.log"
+  mkdir -p "$tmpdir/logs"
+  OUTPUT_FILE="$tmpdir/output.txt"
 }
 
 # --- Subtest 1: PHASE_COMPLETE in RALPH_STATUS triggers E2E gate message ---
@@ -107,9 +110,10 @@ E2E_ENABLED=false
 EOF
 
 set +e
-output=$(bash engine/ralph.sh 2>&1)
+bash engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits 0 with exit signal" "0" "$exit_code"
 assert_output_contains "detects EXIT_SIGNAL" "$output" "Ralph received EXIT_SIGNAL"
@@ -174,7 +178,7 @@ EOF
 
 # No e2e-gate.sh exists in engine/ — the -x check should prevent crash
 set +e
-output=$(bash engine/ralph.sh 2>&1)
+bash engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
 
@@ -202,9 +206,10 @@ E2E_ENABLED=true
 EOF
 
 set +e
-output=$(bash engine/ralph.sh 2>&1)
+bash engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits 0" "0" "$exit_code"
 assert_output_not_contains "no phase E2E gate" "$output" "Running phase-end E2E gate"

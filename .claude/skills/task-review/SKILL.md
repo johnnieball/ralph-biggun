@@ -24,7 +24,7 @@ Analyse the task list against these categories:
 
 ### Mechanical Issues (auto-fix these)
 
-1. **Oversized stories** — more than 5 acceptance criteria. Split into smaller stories, preserving IDs with a/b suffixes (e.g. US-012 becomes US-012a, US-012b). Update any dependency references.
+1. **Oversized stories** — more than 5 acceptance criteria. Split into smaller stories, preserving IDs with a/b suffixes (e.g. {PREFIX}-012 becomes {PREFIX}-012a, {PREFIX}-012b, where {PREFIX} is the task list's `storyPrefix` value). Update any dependency references.
 2. **Missing infrastructure stories** — stories that assume setup (project init, config, schema) without a prior story providing it. Add infrastructure stories at the start.
 3. **Implicit dependencies** — stories that must be done in a specific order but don't declare it. Add `dependsOn` arrays where the ordering is unambiguous.
 4. **Ambiguous acceptance criteria** — criteria that can't be turned into a deterministic test assertion. Tighten them with specific values, thresholds, or observable behaviours.

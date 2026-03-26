@@ -47,6 +47,12 @@ setup_temp_repo() {
   chmod +x "$tmpdir/bin/claude"
   export PATH="$tmpdir/bin:$PATH"
   export RALPH_SKIP_KICKOFF=1
+  # Pre-set log file to skip tee process substitution (hangs in $())
+  export RALPH_LOG_FILE="$tmpdir/logs/ralph-test.log"
+  mkdir -p "$tmpdir/logs"
+  # Tests must capture output via file redirect, not $() — set -m process
+  # groups hold the pipe open after bash exits, causing $() to hang.
+  OUTPUT_FILE="$tmpdir/output.txt"
 }
 
 # --- Subtest 1: No-progress circuit breaker ---
@@ -63,9 +69,10 @@ EOF
 export MOCK_SCENARIO=no-commit
 
 set +e
-output=$(bash engine/ralph.sh 2>&1)
+bash engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits with code 1" "1" "$exit_code"
 assert_output_contains "mentions circuit breaker" "$output" "CIRCUIT BREAKER: No file changes"
@@ -85,9 +92,10 @@ EOF
 export MOCK_SCENARIO=same-error
 
 set +e
-output=$(bash engine/ralph.sh 2>&1)
+bash engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits with code 1" "1" "$exit_code"
 assert_output_contains "mentions same output repeated" "$output" "CIRCUIT BREAKER: Same output repeated"

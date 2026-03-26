@@ -51,6 +51,9 @@ EOF
   chmod +x "$tmpdir/bin/claude"
   export PATH="$tmpdir/bin:$PATH"
   export RALPH_SKIP_KICKOFF=1
+  export RALPH_LOG_FILE="$tmpdir/logs/ralph-test.log"
+  mkdir -p "$tmpdir/logs"
+  OUTPUT_FILE="$tmpdir/output.txt"
 }
 
 # --- Subtest 1: Promise COMPLETE ---
@@ -60,9 +63,10 @@ setup_temp_repo
 export MOCK_SCENARIO=exit-promise
 
 set +e
-output=$(bash engine/ralph.sh 2>&1)
+bash engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits with code 0" "0" "$exit_code"
 assert_output_contains "detects Ralph complete" "$output" "Ralph complete"
@@ -75,9 +79,10 @@ setup_temp_repo
 export MOCK_SCENARIO=exit-signal
 
 set +e
-output=$(bash engine/ralph.sh 2>&1)
+bash engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits with code 0" "0" "$exit_code"
 assert_output_contains "detects EXIT_SIGNAL" "$output" "Ralph received EXIT_SIGNAL"
@@ -90,9 +95,10 @@ setup_temp_repo
 export MOCK_SCENARIO=abort
 
 set +e
-output=$(bash engine/ralph.sh 2>&1)
+bash engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits with code 1" "1" "$exit_code"
 assert_output_contains "detects abort" "$output" "Ralph aborted"

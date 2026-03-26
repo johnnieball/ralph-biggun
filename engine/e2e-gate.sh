@@ -55,7 +55,7 @@ if [ "$RUN_ALL" = false ] && [ -z "$PHASE" ]; then
 fi
 
 # --- Load config ---
-RALPH_CONFIG="${RALPH_CONFIG:-.ralphrc}"
+RALPH_CONFIG="${RALPH_CONFIG:-./.ralphrc}"
 if [ ! -f "$RALPH_CONFIG" ] && [ -f ".ralph/config.sh" ]; then
   RALPH_CONFIG=".ralph/config.sh"
 fi

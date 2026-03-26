@@ -18,7 +18,7 @@ if [ -f ".ralph/config.sh" ]; then
   exec "$ENGINE_DIR/ralph.sh" "$@"
 elif [ -f ".ralphrc" ]; then
   # Legacy layout (backward compat)
-  export RALPH_CONFIG=".ralphrc"
+  export RALPH_CONFIG="./.ralphrc"
   exec engine/ralph.sh "$@"
 else
   echo "ERROR: No Ralph configuration found."

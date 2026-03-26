@@ -51,6 +51,8 @@ setup_brownfield_repo() {
   cp "$SCRIPT_DIR/loop-tests/mock-claude.sh" "$tmpdir/bin/claude"
   chmod +x "$tmpdir/bin/claude"
   export PATH="$tmpdir/bin:$PATH"
+  export RALPH_LOG_FILE="$tmpdir/.ralph/logs/ralph-test.log"
+  OUTPUT_FILE="$tmpdir/output.txt"
 }
 
 echo "Brownfield Loop Tests"
@@ -71,9 +73,10 @@ EOF
 export MOCK_SCENARIO=exit-promise
 
 set +e
-output=$("$REPO_ROOT/commands/run.sh" 2>&1)
+"$REPO_ROOT/commands/run.sh" > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits with code 0" "0" "$exit_code"
 assert_output_contains "detects Ralph complete" "$output" "Ralph complete"
@@ -93,9 +96,10 @@ EOF
 export MOCK_SCENARIO=no-commit
 
 set +e
-output=$("$REPO_ROOT/commands/run.sh" 2>&1)
+"$REPO_ROOT/commands/run.sh" > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits with code 1" "1" "$exit_code"
 assert_output_contains "mentions circuit breaker" "$output" "CIRCUIT BREAKER"
@@ -115,6 +119,8 @@ EOF
 export MOCK_SCENARIO=exit-promise
 
 set +e
+# Unset RALPH_LOG_FILE so tee creates a real log (safe here — output goes to /dev/null, not $())
+unset RALPH_LOG_FILE
 "$REPO_ROOT/commands/run.sh" > /dev/null 2>&1
 set -e
 
@@ -144,9 +150,10 @@ export MOCK_SCENARIO=exit-promise
 # Invoke ralph.sh directly (not via run.sh) — no RALPH_CONFIG env var
 unset RALPH_CONFIG
 set +e
-output=$(.ralph/engine/ralph.sh 2>&1)
+.ralph/engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits with code 0" "0" "$exit_code"
 assert_output_contains "detects Ralph complete" "$output" "Ralph complete"

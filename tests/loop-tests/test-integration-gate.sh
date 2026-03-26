@@ -47,6 +47,9 @@ setup_temp_repo() {
   chmod +x "$tmpdir/bin/claude"
   export PATH="$tmpdir/bin:$PATH"
   export RALPH_SKIP_KICKOFF=1
+  export RALPH_LOG_FILE="$tmpdir/logs/ralph-test.log"
+  mkdir -p "$tmpdir/logs"
+  OUTPUT_FILE="$tmpdir/output.txt"
 }
 
 RALPHRC_DEFAULTS="$(cat <<'EOF'
@@ -67,9 +70,10 @@ setup_temp_repo "$RALPHRC_DEFAULTS" "$TASKS_NO_GATE"
 export MOCK_SCENARIO=exit-signal
 
 set +e
-output=$(bash engine/ralph.sh 2>&1)
+bash engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits with code 0" "0" "$exit_code"
 assert_output_not_contains "no gate banner" "$output" "INTEGRATION GATE"
@@ -84,9 +88,10 @@ setup_temp_repo "$RALPHRC_DEFAULTS" "$TASKS_WITH_GATE"
 export MOCK_SCENARIO=normal
 
 set +e
-output=$(echo "" | bash engine/ralph.sh 2>&1)
+echo "" | bash engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits with code 2" "2" "$exit_code"
 assert_output_contains "shows gate banner" "$output" "INTEGRATION GATE"
@@ -103,9 +108,10 @@ setup_temp_repo "$RALPHRC_DEFAULTS" "$TASKS_GATE_LATER"
 export MOCK_SCENARIO=exit-signal
 
 set +e
-output=$(bash engine/ralph.sh 2>&1)
+bash engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits with code 0" "0" "$exit_code"
 assert_output_not_contains "no gate banner on first iteration" "$output" "INTEGRATION GATE"
@@ -136,9 +142,10 @@ export MOCK_SCENARIO=normal
 # the gate should fire once and exit code 2 on the first iteration — it never
 # reaches iteration 2. This confirms the gate fires exactly once.
 set +e
-output=$(echo "" | bash engine/ralph.sh 2>&1)
+echo "" | bash engine/ralph.sh > "$OUTPUT_FILE" 2>&1
 exit_code=$?
 set -e
+output=$(cat "$OUTPUT_FILE")
 
 assert_exit_code "exits with code 2 on first gate" "2" "$exit_code"
 # Count occurrences of the gate banner — should be exactly 1
