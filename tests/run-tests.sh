@@ -37,6 +37,8 @@ run_suite "Brownfield Loop"     "$SCRIPT_DIR/test-brownfield-loop.sh"
 run_suite "Ralph CLI Tests"     "$SCRIPT_DIR/test-ralph-cli.sh"
 run_suite "Run.sh Tests"        "$SCRIPT_DIR/test-run-sh.sh"
 run_suite "Task Build Tests"    "$SCRIPT_DIR/test-task-build.sh"
+run_suite "E2E Run"             "$SCRIPT_DIR/test-e2e-run.sh"
+run_suite "E2E Task Build"      "$SCRIPT_DIR/test-e2e-task-build.sh"
 
 # Summary
 echo ""
