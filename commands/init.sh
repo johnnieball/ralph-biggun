@@ -2,11 +2,15 @@
 set -e
 
 # commands/init.sh — Initialise or upgrade Ralph in an existing project (brownfield)
-# Usage: commands/init.sh [--stack <preset>] [--upgrade] [target-dir]
+# Usage: commands/init.sh [--stack <preset>] [--blueprint <name>] [--upgrade] [target-dir]
 #
 # Detects the tech stack from project files, or accepts --stack override.
 # Creates .ralph/ with engine, skills, specs, hooks, and config.
 # Merges into .claude/ without clobbering existing files.
+#
+# --blueprint: Load a predefined blueprint task list for greenfield scaffolding.
+#              Creates target directory if it doesn't exist, initialises git,
+#              and copies the blueprint task list into .ralph/specs/.
 #
 # --upgrade: Updates engine, skills, hooks, and CLAUDE-ralph.md in an existing
 #            .ralph/ installation. Preserves user data: specs/, progress.txt,
@@ -19,6 +23,7 @@ source "$RALPH_HOME/lib/utils.sh"
 STACK=""
 TARGET_DIR=""
 UPGRADE=false
+BLUEPRINT=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -30,6 +35,20 @@ while [[ $# -gt 0 ]]; do
       UPGRADE=true
       shift
       ;;
+    --blueprint)
+      if [ -z "${2:-}" ] || [[ "${2:-}" == --* ]]; then
+        echo "ERROR: --blueprint requires a name"
+        echo "Usage: ralph init --blueprint <name> [target-dir]"
+        echo ""
+        echo "Available blueprints:"
+        for f in "$RALPH_HOME"/blueprints/*.json; do
+          [ -f "$f" ] && echo "  - $(basename "$f" .json)"
+        done
+        exit 1
+      fi
+      BLUEPRINT="$2"
+      shift 2
+      ;;
     *)
       TARGET_DIR="$1"
       shift
@@ -38,6 +57,41 @@ while [[ $# -gt 0 ]]; do
 done
 
 TARGET_DIR="${TARGET_DIR:-.}"
+
+# --- Conflict guards ---
+if [ -n "$BLUEPRINT" ] && [ "$UPGRADE" = true ]; then
+  echo "ERROR: --blueprint and --upgrade cannot be used together"
+  exit 1
+fi
+
+# --- Blueprint validation (early, before directory resolution) ---
+if [ -n "$BLUEPRINT" ]; then
+  BLUEPRINT_FILE="$RALPH_HOME/blueprints/${BLUEPRINT}.json"
+  if [ ! -f "$BLUEPRINT_FILE" ]; then
+    echo "ERROR: Blueprint not found: $BLUEPRINT"
+    echo ""
+    echo "Available blueprints:"
+    for f in "$RALPH_HOME"/blueprints/*.json; do
+      [ -f "$f" ] && echo "  - $(basename "$f" .json)"
+    done
+    exit 1
+  fi
+
+  # Create target directory if it doesn't exist (greenfield)
+  if [ ! -d "$TARGET_DIR" ]; then
+    mkdir -p "$TARGET_DIR"
+  fi
+
+  # Extract stack from blueprint if not explicitly provided
+  if [ -z "$STACK" ]; then
+    STACK=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('stack',''))" < "$BLUEPRINT_FILE")
+    if [ -z "$STACK" ]; then
+      echo "ERROR: Blueprint '$BLUEPRINT' does not specify a stack"
+      exit 1
+    fi
+  fi
+fi
+
 TARGET_DIR="$(cd "$TARGET_DIR" 2>/dev/null && pwd)" || { echo "ERROR: Target directory does not exist: $TARGET_DIR"; exit 1; }
 
 # --- Stack detection ---
@@ -410,6 +464,43 @@ add_gitignore() {
 add_gitignore ".ralph/logs/"
 add_gitignore ".ralph-call-count"
 add_gitignore "codebase-snapshot.md"
+
+# --- Blueprint: copy task list and bootstrap git ---
+if [ -n "$BLUEPRINT" ]; then
+  PROJECT_NAME="$(basename "$TARGET_DIR")"
+
+  # Copy blueprint task list with placeholder substitution
+  sed "s/__PROJECT_NAME__/$PROJECT_NAME/g" "$BLUEPRINT_FILE" \
+    > "$TARGET_DIR/.ralph/specs/tasks-${BLUEPRINT}.json"
+
+  # Set RALPH_PLAN in config.sh
+  portable_sed "s/^RALPH_PLAN=$/RALPH_PLAN=$BLUEPRINT/" "$TARGET_DIR/.ralph/config.sh"
+
+  # Bootstrap git repository (engine needs git for commits)
+  cd "$TARGET_DIR"
+  if [ ! -d .git ]; then
+    git init -q
+  fi
+  git add -A
+  git commit -q -m "chore: initialise $PROJECT_NAME via ralph-greenfield"
+
+  echo ""
+  echo "Blueprint '$BLUEPRINT' loaded in $TARGET_DIR"
+
+  # Run the engine to execute blueprint tasks (unless skipped for testing)
+  if [ "${RALPH_BLUEPRINT_NO_RUN:-}" = "1" ]; then
+    echo ""
+    echo "Setup complete (engine run skipped)."
+    echo "To run manually: cd $TARGET_DIR && ralph run 20 $BLUEPRINT"
+  else
+    echo "Running blueprint tasks..."
+    echo ""
+    RALPH_SKIP_KICKOFF=1 bash "$TARGET_DIR/.ralph/engine/ralph.sh" 20 "$BLUEPRINT"
+    echo ""
+    echo "Project scaffolded at $TARGET_DIR"
+  fi
+  exit 0
+fi
 
 echo ""
 echo "Ralph initialised in $TARGET_DIR"

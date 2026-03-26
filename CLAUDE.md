@@ -4,19 +4,17 @@ Autonomous TDD development loop powered by Claude Code. Scaffolds greenfield pro
 
 ## Entry Points
 
-- `ralph` — CLI dispatcher: `ralph init`, `ralph run`, `ralph task-build`
-- `create-project.sh` — Greenfield: scaffolds Bun/TS project with `.ralph/` inside
-- `commands/init.sh` — Brownfield: initialises `.ralph/` in any existing project
+- `ralph` — CLI dispatcher: `ralph init`, `ralph run`, `ralph task-build`, `ralph blueprints`
+- `commands/init.sh` — Initialises `.ralph/` in any project; `--blueprint` for greenfield
 - `commands/task-build.sh` — Generates task list JSON from a markdown spec via iterative refinement
 - `commands/run.sh` — Unified run wrapper: detects `.ralph/` or legacy layout
+- `blueprints/` — Predefined task lists for greenfield scaffolding
 
 ## Workflows
 
-### Greenfield (new Bun/TS project)
+### Greenfield (new project via blueprint)
 
-1. `./create-project.sh ~/projects/my-app my-tasks.json [plan-name]`
-2. `/task-review [plan-name]` in Claude Code
-3. `ralph run 20 [plan-name]`
+1. `ralph init --blueprint bun-typescript-webapp ~/projects/my-app`
 
 ### Brownfield (existing project, any stack)
 

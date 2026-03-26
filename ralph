@@ -4,10 +4,11 @@
 # Usage: ralph <command> [options]
 #
 # Commands:
-#   init [--stack <preset>] [--upgrade] [target-dir] — Initialise or upgrade Ralph
+#   init [--stack <preset>] [--blueprint <name>] [--upgrade] [target-dir]
 #   run [iterations] [plan-name]                     — Start the autonomous loop
 #   task-build <spec-file> [plan-name] [max-iter]    — Generate task list from spec
 #   upgrade [--stack <preset>] [target-dir]           — Shorthand for init --upgrade
+#   blueprints                                        — List available blueprints
 
 RALPH_HOME="$(cd "$(dirname "$0")" && pwd)"
 
@@ -28,18 +29,33 @@ case "${1:-}" in
     shift
     exec "$RALPH_HOME/commands/init.sh" --upgrade "$@"
     ;;
+  blueprints)
+    echo "Available blueprints:"
+    for f in "$RALPH_HOME"/blueprints/*.json; do
+      [ -f "$f" ] && echo "  - $(basename "$f" .json)"
+    done
+    ;;
   *)
     echo "Usage: ralph <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  init [--stack <preset>] [--upgrade] [dir]  Initialise or upgrade Ralph"
+    echo "  init [options] [dir]                       Initialise or upgrade Ralph"
+    echo "    --stack <preset>                         Override stack detection"
+    echo "    --blueprint <name>                       Load a blueprint task list (greenfield)"
+    echo "    --upgrade                                Upgrade existing installation"
     echo "  upgrade [--stack <preset>] [dir]           Shorthand for init --upgrade"
     echo "  run [iterations] [plan-name]               Start the autonomous loop"
     echo "  task-build <spec> [plan-name] [max-iter]   Generate task list from spec file"
+    echo "  blueprints                                 List available blueprints"
     echo ""
     echo "Available stack presets:"
     for f in "$RALPH_HOME"/presets/*.sh; do
       echo "  - $(basename "$f" .sh)"
+    done
+    echo ""
+    echo "Available blueprints:"
+    for f in "$RALPH_HOME"/blueprints/*.json; do
+      [ -f "$f" ] && echo "  - $(basename "$f" .json)"
     done
     ;;
 esac

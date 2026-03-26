@@ -103,7 +103,11 @@ if [ "$rounds" -gt 1 ]; then
   trap "rm -rf $TMPDIR_PATH" EXIT
 
   echo "Scaffolding $project_name..."
-  bash "$REPO_ROOT/create-project.sh" "$TMPDIR_PATH" "$TASKS_PATH" "$plan_name"
+  bash "$REPO_ROOT/ralph" init --blueprint bun-typescript-webapp "$TMPDIR_PATH"
+  cd "$TMPDIR_PATH"
+  # Override with eval task list
+  cp "$TASKS_PATH" "$TMPDIR_PATH/.ralph/specs/tasks-${plan_name}.json"
+  portable_sed "s/^RALPH_PLAN=.*/RALPH_PLAN=$plan_name/" "$TMPDIR_PATH/.ralph/config.sh"
   cp "$TASKS_PATH" "$RUN_DIR/input-tasks.json"
 
   # Delegate to multi-round runner
@@ -130,8 +134,11 @@ rm -rf "$TMPDIR_PATH"
 trap "rm -rf $TMPDIR_PATH" EXIT
 
 echo "Scaffolding $project_name..."
-bash "$REPO_ROOT/create-project.sh" "$TMPDIR_PATH" "$TASKS_PATH" "$plan_name"
+bash "$REPO_ROOT/ralph" init --blueprint bun-typescript-webapp "$TMPDIR_PATH"
 cd "$TMPDIR_PATH"
+# Override with eval task list
+cp "$TASKS_PATH" "$TMPDIR_PATH/.ralph/specs/tasks-${plan_name}.json"
+portable_sed "s/^RALPH_PLAN=.*/RALPH_PLAN=$plan_name/" "$TMPDIR_PATH/.ralph/config.sh"
 cp "$TASKS_PATH" "$RUN_DIR/input-tasks.json"
 
 # Run ralph.sh, capturing output

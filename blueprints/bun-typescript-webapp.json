@@ -1,0 +1,24 @@
+{
+  "project": "__PROJECT_NAME__",
+  "stack": "bun-typescript",
+  "branchName": "main",
+  "description": "Bun + TypeScript webapp scaffold with Vitest, oxlint, Prettier, and Husky",
+  "storyPrefix": "BP",
+  "userStories": [
+    {
+      "id": "BP-001",
+      "title": "Scaffold complete Bun/TypeScript project",
+      "description": "SCAFFOLDING STORY — This is a deterministic file-creation task, NOT feature development. Create ALL files listed below with their EXACT contents, run `bun install`, then verify. Do NOT write tests for file existence — these are config files, not application code. Just create them and verify the toolchain works.\n\nCreate ALL of the following files in a single pass:\n\n### 1. `package.json`\n```json\n{\n  \"name\": \"__PROJECT_NAME__\",\n  \"version\": \"0.0.1\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"bun run --watch src/index.ts\",\n    \"build\": \"bun build src/index.ts --outdir ./dist --target node\",\n    \"test\": \"bun run vitest run\",\n    \"test:watch\": \"bun run vitest\",\n    \"typecheck\": \"bunx tsc --noEmit\",\n    \"lint\": \"oxlint src/\",\n    \"prepare\": \"husky\"\n  },\n  \"devDependencies\": {\n    \"bun-types\": \"latest\",\n    \"husky\": \"^9.1.7\",\n    \"lint-staged\": \"^16.0.0\",\n    \"oxlint\": \"^1.50.0\",\n    \"prettier\": \"^3.4.0\",\n    \"typescript\": \"^5.7.0\",\n    \"vitest\": \"^3.0.0\"\n  },\n  \"prettier\": {\n    \"semi\": true,\n    \"trailingComma\": \"es5\",\n    \"singleQuote\": false,\n    \"printWidth\": 80,\n    \"tabWidth\": 2\n  }\n}\n```\n\n### 2. `tsconfig.json`\n```json\n{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"module\": \"NodeNext\",\n    \"moduleResolution\": \"NodeNext\",\n    \"types\": [\"bun-types\"],\n    \"outDir\": \"./dist\",\n    \"rootDir\": \"./src\",\n    \"strict\": true,\n    \"esModuleInterop\": true,\n    \"skipLibCheck\": true,\n    \"forceConsistentCasingInFileNames\": true,\n    \"resolveJsonModule\": true,\n    \"declaration\": true,\n    \"declarationMap\": true,\n    \"sourceMap\": true\n  },\n  \"include\": [\"src/**/*\"],\n  \"exclude\": [\"node_modules\", \"dist\"]\n}\n```\n\n### 3. `vitest.config.ts`\n```typescript\nimport { defineConfig } from \"vitest/config\";\n\nexport default defineConfig({\n  test: {\n    globals: true,\n    environment: \"node\",\n    include: [\"src/**/*.test.ts\", \"src/**/*.spec.ts\"],\n    passWithNoTests: true,\n    coverage: {\n      provider: \"v8\",\n      reporter: [\"text\", \"json-summary\"],\n    },\n  },\n});\n```\n\n### 4. `.oxlintrc.json`\n```json\n{\n  \"$schema\": \"./node_modules/oxlint/configuration_schema.json\",\n  \"categories\": {\n    \"correctness\": \"error\",\n    \"suspicious\": \"warn\"\n  }\n}\n```\n\n### 5. `.prettierrc`\n```json\n{\n  \"semi\": true,\n  \"trailingComma\": \"es5\",\n  \"singleQuote\": false,\n  \"printWidth\": 80,\n  \"tabWidth\": 2\n}\n```\n\n### 6. `.lintstagedrc`\n```json\n{\n  \"*.{ts,tsx,js,jsx}\": \"oxlint\",\n  \"*\": \"prettier --ignore-unknown --write\"\n}\n```\n\n### 7. `src/index.ts`\n```typescript\nexport {};\n```\n\n### 8. `.gitignore`\n```\n# Dependencies\nnode_modules/\n\n# Build output\ndist/\nbuild/\n.next/\nout/\n\n# Environment\n.env\n.env.local\n.env.*.local\n\n# Data / databases\ndata/\n*.db\n*.sqlite\n\n# IDE / OS\n.DS_Store\n*.swp\n.idea/\n.vscode/\n\n# TypeScript\ntsconfig.tsbuildinfo\nnext-env.d.ts\n\n# Test / coverage\ncoverage/\n\n# Logs\n*.log\nlogs/\n\n# Ralph internals\n.ralph-call-count\n.ralph-last-error\n\n# Eval runs\nevals/runs/\n\n# Puppeteer / PDF output\noutput/\n\n# Bun\nbun.lockb\n\n# Docker\n.dockerignore\n```\n\n### 9. `CLAUDE.md`\n```markdown\n# __PROJECT_NAME__\n\n## Commands\n\n- `bun run dev` — watch mode (`bun run --watch src/index.ts`)\n- `bun run test` — run tests (Vitest)\n- `bun run typecheck` — TypeScript type checking\n- `bun run lint` — linting (oxlint)\n\n## Codebase Patterns\n\n(Patterns will be added here by Ralph during iterations)\n\n<!-- Ralph --> Read .ralph/CLAUDE-ralph.md for autonomous development loop instructions.\n```\n\n### 10. `.husky/pre-commit` (must be executable)\n```bash\nbunx lint-staged\nbun run typecheck\nbun run test\n```\n\n## After creating all files:\n1. Run `bun install`\n2. Run `bun run test` — must pass\n3. Run `bun run typecheck` — must pass with zero errors\n4. Run `bun run lint` — must pass\n5. Commit all files",
+      "acceptanceCriteria": [
+        "`bun run test` passes",
+        "`bun run typecheck` passes with zero errors",
+        "`bun run lint` passes",
+        ".husky/pre-commit exists and is executable"
+      ],
+      "priority": "high",
+      "passes": false,
+      "dependsOn": [],
+      "notes": "This is a scaffolding story. Create all files in one pass using the exact contents above. Do not write unit tests for config file existence — verify by running the toolchain commands."
+    }
+  ]
+}
