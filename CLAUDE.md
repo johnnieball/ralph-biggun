@@ -1,4 +1,4 @@
-# ralph-greenfield
+# ralph-biggun
 
 Autonomous TDD development loop powered by Claude Code. Scaffolds greenfield projects or initialises in existing (brownfield) codebases.
 

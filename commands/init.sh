@@ -482,7 +482,7 @@ if [ -n "$BLUEPRINT" ]; then
     git init -q
   fi
   git add -A
-  git commit -q -m "chore: initialise $PROJECT_NAME via ralph-greenfield"
+  git commit -q -m "chore: initialise $PROJECT_NAME via ralph-biggun"
 
   echo ""
   echo "Blueprint '$BLUEPRINT' loaded in $TARGET_DIR"
