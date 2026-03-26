@@ -110,6 +110,38 @@ case "$SCENARIO" in
     emit_result "<promise>ABORT</promise>"
     ;;
 
+  missing-status-block)
+    emit_assistant "Iteration done but no status block."
+    emit_result "Work completed without status block."
+
+    touch .mock-nostatus-marker
+    git add .mock-nostatus-marker 2>/dev/null || true
+    git commit -m "RALPH: mock no-status progress" --allow-empty 2>/dev/null || true
+    ;;
+
+  committed-with-story)
+    # EXIT_SIGNAL is false (not true as in exit-signal scenario) so the loop
+    # reaches the summary-line construction code. Use MAX_ITERATIONS=1 in the
+    # test's .ralphrc to exit cleanly after one full iteration.
+    result_text="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
+      '---RALPH_STATUS---' \
+      'STATUS: IN_PROGRESS' \
+      'CURRENT_STORY: US-001' \
+      'TASKS_COMPLETED_THIS_LOOP: 1' \
+      'FILES_MODIFIED: 1' \
+      'TESTS_STATUS: PASSING' \
+      'WORK_TYPE: IMPLEMENTATION' \
+      'EXIT_SIGNAL: false' \
+      'RECOMMENDATION: Making progress on US-001' \
+      '---END_RALPH_STATUS---')"
+    emit_assistant "Story US-001 progress."
+    emit_result "$result_text"
+
+    touch .mock-story-marker
+    git add .mock-story-marker 2>/dev/null || true
+    git commit -m "RALPH: feat: [US-001] - Setup Project" --allow-empty 2>/dev/null || true
+    ;;
+
   # --- task-build scenarios ---
   # Use MOCK_TASKS_PATH env var to know where the task file goes.
 

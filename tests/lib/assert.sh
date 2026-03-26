@@ -73,6 +73,18 @@ assert_output_not_contains() {
   fi
 }
 
+# Check that a string variable matches an extended regex (grep -qE)
+assert_output_matches() {
+  local label="$1" haystack="$2" pattern="$3"
+  if echo "$haystack" | grep -qE -- "$pattern"; then
+    echo "  PASS: $label"
+    PASS=$(( PASS + 1 ))
+  else
+    echo "  FAIL: $label (expected to match pattern '$pattern')"
+    FAIL=$(( FAIL + 1 ))
+  fi
+}
+
 print_summary() {
   local suite_name="$1"
   echo ""

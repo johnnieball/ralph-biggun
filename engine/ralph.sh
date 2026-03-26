@@ -16,7 +16,7 @@ set -m  # Job control: background jobs get own process group (PID == PGID)
 # ================================================
 
 # Source configuration
-RALPH_CONFIG="${RALPH_CONFIG:-.ralphrc}"
+RALPH_CONFIG="${RALPH_CONFIG:-./.ralphrc}"
 if [ ! -f "$RALPH_CONFIG" ] && [ -f ".ralph/config.sh" ]; then
   RALPH_CONFIG=".ralph/config.sh"
 fi
@@ -108,6 +108,9 @@ fi
 
 echo "Using tasks: $TASKS_PATH"
 
+# Read story prefix from task list (falls back to "US" for legacy task lists)
+STORY_PREFIX=$(jq -r '.storyPrefix // "US"' "$TASKS_PATH" 2>/dev/null || echo "US")
+
 # Compute iteration budget from task list if not explicitly set
 if [ -z "$MAX_ITERATIONS" ]; then
   remaining=$(jq '[.userStories[] | select(.passes != true)] | length' "$TASKS_PATH" 2>/dev/null || echo "0")
@@ -117,9 +120,13 @@ if [ -z "$MAX_ITERATIONS" ]; then
 fi
 
 # Automatic log file — mirror all output to timestamped log
+# Skip tee when RALPH_LOG_FILE is pre-set (e.g. by tests) — process substitution
+# inside $() command substitution hangs because tee keeps the pipe open.
 mkdir -p "$LOG_DIR"
-LOG_FILE="$LOG_DIR/ralph-$(date +%Y%m%d-%H%M%S).log"
-exec > >(tee -a "$LOG_FILE") 2>&1
+LOG_FILE="${RALPH_LOG_FILE:-$LOG_DIR/ralph-$(date +%Y%m%d-%H%M%S).log}"
+if [ -z "${RALPH_LOG_FILE:-}" ]; then
+  exec > >(tee -a "$LOG_FILE") 2>&1
+fi
 
 # jq filters for stream-json output
 stream_text='select(.type == "assistant").message.content[]? | select(.type == "text").text // empty | gsub("\n"; "\r\n") | . + "\r\n\n"'
@@ -325,10 +332,10 @@ for (( i=1; i<=MAX_ITERATIONS; i++ )); do
   # passes: false due to infra issues).
   if [ "$gate_cleared" = false ] && [ -f "$TASKS_PATH" ]; then
     gate_message=$(jq -r '
-      [.userStories[] | select(.passes != true)] |
+      [.userStories[]? | select(.passes != true)] |
       sort_by(if .priority == "high" then 0 elif .priority == "medium" then 1 else 2 end) |
       first | .gate // empty
-    ' "$TASKS_PATH" 2>/dev/null)
+    ' "$TASKS_PATH" 2>/dev/null || echo "")
 
     if [ -n "$gate_message" ]; then
       echo ""
@@ -629,7 +636,7 @@ $ralph_commits"
     commit_label="committed"
     # Try to get story ID from latest commit message
     if [ -z "$current_story" ]; then
-      current_story=$(git log --grep="RALPH" -n 1 --format="%s" 2>/dev/null | grep -oE 'US-[0-9]+' | head -1 || echo "")
+      current_story=$(git log --grep="RALPH" -n 1 --format="%s" 2>/dev/null | grep -oE "${STORY_PREFIX}-[0-9]+" | head -1 || echo "")
     fi
     summary_line="[$i/$MAX_ITERATIONS]"
     if [ -n "$current_story" ]; then

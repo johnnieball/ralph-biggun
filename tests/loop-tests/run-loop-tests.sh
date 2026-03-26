@@ -36,6 +36,10 @@ run_test "test-hook-blocking.sh"
 run_test "test-integration-gate.sh"
 run_test "test-e2e-gate.sh"
 run_test "test-phase-detection.sh"
+run_test "test-status-parsing.sh"
+run_test "test-task-json-contract.sh"
+run_test "test-summary-line.sh"
+run_test "test-detect-rate-limit.sh"
 
 # Print summary
 for i in "${!TESTS[@]}"; do
