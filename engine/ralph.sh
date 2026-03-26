@@ -281,6 +281,66 @@ print_run_summary() {
   echo "═══════════════════════════════════════════════════"
 }
 
+# --- Archive stale progress.txt between runs ---
+extract_section() {
+  local file="$1" heading="$2"
+  awk -v h="$heading" '
+    $0 ~ "^## " h { found=1; print; next }
+    found && /^## / { found=0 }
+    found && /^---$/ { found=0 }
+    found { print }
+  ' "$file"
+}
+
+archive_progress() {
+  # Skip if suppressed (e.g. multi-round evals, rounds 2+)
+  [ "${RALPH_SKIP_ARCHIVE:-}" = "1" ] && return 0
+
+  # Skip if progress file doesn't exist
+  [ -f "$PROGRESS_FILE" ] || return 0
+
+  # Skip if progress file has no real iteration entries (just the template)
+  if ! grep -qE '^## [0-9]{4}-|^## SKIPPED:' "$PROGRESS_FILE" 2>/dev/null; then
+    return 0
+  fi
+
+  # Archive the full file
+  local archive_name="progress-archive-$(date +%Y%m%d-%H%M%S).txt"
+  cp "$PROGRESS_FILE" "$LOG_DIR/$archive_name"
+  echo "Archived previous progress to $LOG_DIR/$archive_name"
+
+  # Extract cross-run knowledge sections
+  local patterns_section debt_section
+  patterns_section=$(extract_section "$PROGRESS_FILE" "Codebase Patterns")
+  debt_section=$(extract_section "$PROGRESS_FILE" "Technical Debt")
+
+  # Write fresh progress file preserving cross-run knowledge
+  {
+    echo "# Ralph Progress Log"
+    echo ""
+    if [ -n "$patterns_section" ]; then
+      echo "$patterns_section"
+    else
+      echo "## Codebase Patterns"
+      echo "(Patterns will be added here by Ralph as it discovers reusable conventions)"
+    fi
+    echo ""
+    if [ -n "$debt_section" ]; then
+      echo "$debt_section"
+    else
+      echo "## Technical Debt"
+      echo "(refactoring needs noted during the build - address when capacity allows)"
+    fi
+    echo ""
+    echo "---"
+    echo ""
+    echo "Started: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "---"
+  } > "$PROGRESS_FILE"
+}
+
+archive_progress
+
 echo "Starting Ralph - Max iterations: $MAX_ITERATIONS"
 echo "Log file: $LOG_FILE"
 

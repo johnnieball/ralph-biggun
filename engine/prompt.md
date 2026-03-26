@@ -193,24 +193,9 @@ workers) must have robust teardown:
 If you create or modify tests that spawn subprocesses, verify the test runner
 exits with code 0 and no orphaned processes remain.
 
-# COMMIT
-
-Update the task list first: set `passes: true` for the completed story in `__TASKS_PATH__`. This must be included in the same commit.
-
-Commit ALL changes with the message format:
-
-```
-RALPH: feat: [US-XXX] - [Story Title]
-
-Task completed: <brief description>
-Key decisions: <any architectural or design decisions>
-Files changed: <list>
-Blockers/notes: <anything the next iteration should know>
-```
-
 # PROGRESS
 
-Append to `__PROGRESS_FILE__` (never replace existing content):
+Append to `__PROGRESS_FILE__`:
 
 ```
 ## [Date/Time] - [Story ID]
@@ -229,6 +214,21 @@ Before appending your progress entry, check the length of **PROGRESS_FILE**. If 
 
 Check if any directories you edited have nearby `CLAUDE.md` files. If you discovered something future iterations should know (API conventions, gotchas, dependencies between files, testing approaches), add it there.
 
+# COMMIT
+
+Update the task list: set `passes: true` for the completed story in `__TASKS_PATH__`.
+
+Commit ALL changes (including the progress and task list updates) with the message format (read `storyPrefix` from `__TASKS_PATH__` for the story ID prefix):
+
+```
+RALPH: feat: [{PREFIX}-XXX] - [Story Title]
+
+Task completed: <brief description>
+Key decisions: <any architectural or design decisions>
+Files changed: <list>
+Blockers/notes: <anything the next iteration should know>
+```
+
 # RALPH_STATUS
 
 At the end of your response, ALWAYS include this status block:
@@ -236,7 +236,7 @@ At the end of your response, ALWAYS include this status block:
 ```
 ---RALPH_STATUS---
 STATUS: IN_PROGRESS | COMPLETE | BLOCKED
-CURRENT_STORY: US-XXX
+CURRENT_STORY: {PREFIX}-XXX
 TASKS_COMPLETED_THIS_LOOP: <number>
 FILES_MODIFIED: <number>
 TESTS_STATUS: PASSING | FAILING | NOT_RUN
@@ -440,7 +440,7 @@ The following files and directories are part of Ralph's infrastructure. NEVER de
 - `__ENGINE_DIR__/` (entire directory - prompt.md, ralph.sh, snapshot.sh)
 - `__SPECS_DIR__/` (entire directory - architecture.md, tasks.json structure)
 - `__SKILLS_DIR__/` (entire directory and all contents)
-- `__PROGRESS_FILE__` (append only - never replace, never delete content)
+- `__PROGRESS_FILE__` (append only within a run)
 - `CLAUDE.md` (update Codebase Patterns section only - never delete existing content)
 
 When performing cleanup, refactoring, or restructuring tasks: these files are NOT part of your project code. They are Ralph's internal control files that keep the development loop running. Deleting them will break Ralph and halt all autonomous development.

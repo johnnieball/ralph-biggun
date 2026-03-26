@@ -23,6 +23,9 @@ plan_name=$(jq -r '.project' "$TASKS_PATH" 2>/dev/null || echo "eval")
 plan_name=$(echo "$plan_name" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
 tasks_file="tasks-${plan_name}.json"
 
+# Read story prefix from task list (falls back to "US" for legacy task lists)
+STORY_PREFIX=$(jq -r '.storyPrefix // "US"' "$TASKS_PATH" 2>/dev/null || echo "US")
+
 echo "=== Multi-Round Eval ==="
 echo "Rounds: $max_rounds | Iterations per round: $iterations_per_round"
 echo "Plan: $plan_name"
@@ -59,6 +62,11 @@ for (( round=1; round<=max_rounds; round++ )); do
 
   # Snapshot RALPH commits before this round
   ralph_commits_before=$(git log --grep="RALPH" --oneline 2>/dev/null | wc -l | tr -d ' ')
+
+  # First round archives stale progress (fresh start); subsequent rounds skip
+  if [ "$round" -gt 1 ]; then
+    export RALPH_SKIP_ARCHIVE=1
+  fi
 
   # Run ralph.sh, capturing output
   set +e
@@ -196,12 +204,12 @@ for (( round=1; round<=max_rounds; round++ )); do
   # Parse last RALPH_STATUS block's RECOMMENDATION for a US-0XX pattern
   last_recommendation=$(grep -E "RECOMMENDATION:" "$log_file" 2>/dev/null | tail -1 || echo "")
   if [ -n "$last_recommendation" ]; then
-    stuck_story_id=$(echo "$last_recommendation" | grep -oE 'US-[0-9]+' | head -1 || echo "")
+    stuck_story_id=$(echo "$last_recommendation" | grep -oE "${STORY_PREFIX}-[0-9]+" | head -1 || echo "")
   fi
 
   # Grep last 200 lines for most frequently mentioned US-0XX
   if [ -z "$stuck_story_id" ]; then
-    stuck_story_id=$(tail -200 "$log_file" 2>/dev/null | grep -oE 'US-[0-9]+' | sort | uniq -c | sort -rn | head -1 | awk '{print $2}' || echo "")
+    stuck_story_id=$(tail -200 "$log_file" 2>/dev/null | grep -oE "${STORY_PREFIX}-[0-9]+" | sort | uniq -c | sort -rn | head -1 | awk '{print $2}' || echo "")
   fi
 
   # Fall back to first story with passes: false
